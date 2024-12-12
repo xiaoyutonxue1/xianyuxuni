@@ -1,89 +1,92 @@
-import React, { useState } from 'react';
-import { Card, Table, Button, Radio, Input, Space, Tag, Modal, Form, Select, Upload, message } from 'antd';
-import { PlusOutlined, UploadOutlined, LinkOutlined } from '@ant-design/icons';
-import type { RadioChangeEvent } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, message, InputNumber, Alert } from 'antd';
+import { ShoppingCartOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { getProducts, createProduct } from '../../services/productService';
+import type { ProductListingItem } from '../../types/product';
+import type { ProductQueryParams } from '../../services/productService';
+import useSettingsStore from '../../store/settingsStore';
 
 const { Search } = Input;
-const { TextArea } = Input;
-
-interface ProductSelectionItem {
-  id: number;
-  name: string;
-  method: 'crawler' | 'manual';
-  status: 'pending' | 'processed';
-  createdAt: string;
-  price: string;
-  source: string;
-  link?: string;
-}
-
-interface ExportSettingsFormValues {
-  path: string;
-  nameRule: string;
-  format: 'excel' | 'csv';
-}
-
-// 添加示例数据
-const mockData: ProductSelectionItem[] = [
-  {
-    id: 1,
-    name: '王者荣耀点券充值',
-    method: 'crawler',
-    status: 'pending',
-    createdAt: '2024-03-01 10:00:00',
-    price: '98.00',
-    source: '闲鱼',
-    link: 'https://2.taobao.com/item1',
-  },
-  {
-    id: 2,
-    name: '和平精英UC充值卡',
-    method: 'crawler',
-    status: 'processed',
-    createdAt: '2024-03-01 11:30:00',
-    price: '198.00',
-    source: '闲鱼',
-    link: 'https://2.taobao.com/item2',
-  },
-  {
-    id: 3,
-    name: 'Steam充值卡',
-    method: 'manual',
-    status: 'pending',
-    createdAt: '2024-03-02 09:15:00',
-    price: '500.00',
-    source: '手动添加',
-  },
-  {
-    id: 4,
-    name: '腾讯视频会员12个月',
-    method: 'manual',
-    status: 'processed',
-    createdAt: '2024-03-02 14:20:00',
-    price: '253.00',
-    source: '手动添加',
-  },
-  {
-    id: 5,
-    name: '网易云音乐年卡',
-    method: 'crawler',
-    status: 'pending',
-    createdAt: '2024-03-02 16:45:00',
-    price: '128.00',
-    source: '闲鱼',
-    link: 'https://2.taobao.com/item5',
-  },
-];
 
 const ProductSelection: React.FC = () => {
-  const [selectionMethod, setSelectionMethod] = useState<'crawler' | 'manual'>('crawler');
-  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
-  const [isExportModalVisible, setIsExportModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<ProductListingItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<ProductListingItem[]>([]);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
-  const [exportForm] = Form.useForm();
+  const { storeAccounts, storeGroups } = useSettingsStore();
 
-  const columns: ColumnsType<ProductSelectionItem> = [
+  // 获取商品列表
+  const fetchProducts = async (params: ProductQueryParams = { page: 1, pageSize: 10 }) => {
+    try {
+      setLoading(true);
+      const response = await getProducts(params);
+      setData(response.items);
+      setTotal(response.total);
+    } catch (error) {
+      message.error('获取商品列表失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  // 选择商品
+  const handleSelect = () => {
+    if (selectedProducts.length === 0) {
+      message.warning('请选择要发布的商品');
+      return;
+    }
+    setIsModalVisible(true);
+  };
+
+  // 发布商品
+  const handlePublish = async () => {
+    try {
+      const values = await form.validateFields();
+      const { stores, priceAdjustment } = values;
+
+      // 为每个选中的商品创建店铺商品
+      const promises = selectedProducts.map(product => 
+        stores.map((storeId: string) => {
+          const adjustedPrice = Number(product.price) * (1 + (priceAdjustment || 0));
+          return createProduct({
+            ...product,
+            id: undefined,
+            store: storeId,
+            price: adjustedPrice.toFixed(2),
+            status: 'draft',
+            distributedTo: [storeId],
+          });
+        })
+      ).flat();
+
+      await Promise.all(promises);
+      message.success('发布成功');
+      setIsModalVisible(false);
+      form.resetFields();
+      setSelectedRowKeys([]);
+      setSelectedProducts([]);
+    } catch (error) {
+      message.error('发布失败');
+    }
+  };
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (keys: React.Key[], rows: ProductListingItem[]) => {
+      setSelectedRowKeys(keys);
+      setSelectedProducts(rows);
+    },
+  };
+
+  const columns: ColumnsType<ProductListingItem> = [
     {
       title: '商品名称',
       dataIndex: 'name',
@@ -91,261 +94,147 @@ const ProductSelection: React.FC = () => {
       width: 200,
     },
     {
-      title: '选品方式',
-      dataIndex: 'method',
-      key: 'method',
+      title: '分类',
+      dataIndex: 'category',
+      key: 'category',
       width: 120,
-      render: (method: 'crawler' | 'manual') => (
-        <Tag color={method === 'crawler' ? 'blue' : 'green'}>
-          {method === 'crawler' ? '爬虫选品' : '手动选品'}
-        </Tag>
-      ),
-      filters: [
-        { text: '爬虫选品', value: 'crawler' },
-        { text: '手动选品', value: 'manual' },
-      ],
-      onFilter: (value: string | number | boolean, record: ProductSelectionItem) => 
-        record.method === value,
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (status: 'pending' | 'processed') => (
-        <Tag color={status === 'pending' ? 'orange' : 'green'}>
-          {status === 'pending' ? '待处理' : '已处理'}
-        </Tag>
-      ),
-      filters: [
-        { text: '待处理', value: 'pending' },
-        { text: '已处理', value: 'processed' },
-      ],
-      onFilter: (value: string | number | boolean, record: ProductSelectionItem) => 
-        record.status === value,
+      title: '原价',
+      dataIndex: 'originalPrice',
+      key: 'originalPrice',
+      width: 100,
+      render: (price: string) => `￥${price}`,
     },
     {
-      title: '价格',
+      title: '建议售价',
       dataIndex: 'price',
       key: 'price',
-      width: 120,
+      width: 100,
       render: (price: string) => `￥${price}`,
-      sorter: (a: ProductSelectionItem, b: ProductSelectionItem) => 
-        parseFloat(a.price) - parseFloat(b.price),
-    },
-    {
-      title: '来源',
-      dataIndex: 'source',
-      key: 'source',
-      width: 120,
-    },
-    {
-      title: '商品链接',
-      dataIndex: 'link',
-      key: 'link',
-      width: 150,
-      render: (link: string | undefined) => link ? (
-        <a href={link} target="_blank" rel="noopener noreferrer">
-          <LinkOutlined /> 查看链接
-        </a>
-      ) : '-',
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 180,
-      sorter: (a: ProductSelectionItem, b: ProductSelectionItem) => 
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 150,
-      render: (_: unknown, record: ProductSelectionItem) => (
-        <Space size="middle">
-          <a onClick={() => handleEdit(record)}>编辑</a>
-          <a onClick={() => handleDelete(record)}>删除</a>
-        </Space>
-      ),
     },
   ];
-
-  const handleMethodChange = (e: RadioChangeEvent) => {
-    setSelectionMethod(e.target.value);
-    form.resetFields();
-  };
-
-  const handleAddProduct = () => {
-    setIsAddModalVisible(true);
-  };
-
-  const handleExportProducts = () => {
-    setIsExportModalVisible(true);
-  };
-
-  const handleEdit = (record: ProductSelectionItem) => {
-    form.setFieldsValue(record);
-    setIsAddModalVisible(true);
-  };
-
-  const handleDelete = (record: ProductSelectionItem) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: `确定要删除商品"${record.name}"吗？`,
-      onOk() {
-        message.success('删除成功');
-      },
-    });
-  };
-
-  const onAddModalOk = () => {
-    form.validateFields().then((values) => {
-      console.log('Form values:', values);
-      message.success('保存成功');
-      setIsAddModalVisible(false);
-      form.resetFields();
-    });
-  };
-
-  const onExportModalOk = () => {
-    exportForm.validateFields().then((values: ExportSettingsFormValues) => {
-      console.log('Export settings:', values);
-      message.success('导出成功');
-      setIsExportModalVisible(false);
-      exportForm.resetFields();
-    });
-  };
 
   return (
     <div className="space-y-4">
       <Card>
-        <div className="space-y-4">
-          <div>
-            <Radio.Group value={selectionMethod} onChange={handleMethodChange}>
-              <Radio.Button value="crawler">爬虫选品</Radio.Button>
-              <Radio.Button value="manual">手动选品</Radio.Button>
-            </Radio.Group>
-          </div>
-          
-          <div className="flex justify-between">
-            <Space>
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAddProduct}>
-                新增选品
-              </Button>
-              <Button icon={<UploadOutlined />} onClick={handleExportProducts}>
-                导出选品
-              </Button>
-            </Space>
-            <Search placeholder="搜索商品" style={{ width: 300 }} />
-          </div>
+        <div className="flex justify-between">
+          <Button
+            type="primary"
+            icon={<ShoppingCartOutlined />}
+            onClick={handleSelect}
+            disabled={selectedRowKeys.length === 0}
+          >
+            发布到店铺
+          </Button>
+          <Space>
+            <Select
+              placeholder="选择分类"
+              style={{ width: 200 }}
+              allowClear
+              onChange={value => fetchProducts({ page: 1, pageSize: 10, category: value })}
+              options={[
+                { label: '游戏充值', value: '游戏充值' },
+                { label: '账号租赁', value: '账号租赁' },
+                { label: '代练代打', value: '代练代打' },
+              ]}
+            />
+            <Search
+              placeholder="搜索商品"
+              style={{ width: 300 }}
+              onSearch={value => fetchProducts({ page: 1, pageSize: 10, keyword: value })}
+            />
+          </Space>
         </div>
       </Card>
 
       <Table
         columns={columns}
-        dataSource={mockData}
+        dataSource={data}
         rowKey="id"
-        rowSelection={{
-          type: 'checkbox',
-        }}
+        rowSelection={rowSelection}
         pagination={{
-          total: mockData.length,
-          pageSize: 10,
+          total,
           showSizeChanger: true,
           showQuickJumper: true,
+          onChange: (page, pageSize) => fetchProducts({ page, pageSize }),
         }}
+        loading={loading}
       />
 
-      {/* 新增/编辑选品弹窗 */}
       <Modal
-        title={form.getFieldValue('id') ? '编辑选品' : '新增选品'}
-        open={isAddModalVisible}
-        onOk={onAddModalOk}
-        onCancel={() => setIsAddModalVisible(false)}
+        title="发布商品"
+        open={isModalVisible}
+        onOk={handlePublish}
+        onCancel={() => {
+          setIsModalVisible(false);
+          form.resetFields();
+        }}
         width={600}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{ method: selectionMethod }}
-        >
-          <Form.Item name="id" hidden>
-            <Input />
-          </Form.Item>
+        <div className="mb-4">
+          <Alert
+            message={`已选择 ${selectedProducts.length} 个商品`}
+            description="选中的商品将被发布到所选店铺,每个店铺将创建一个独立商品。"
+            type="info"
+            showIcon
+          />
+        </div>
+        <Form form={form} layout="vertical">
           <Form.Item
-            name="name"
-            label="商品名称"
-            rules={[{ required: true, message: '请输入商品名称' }]}
+            name="stores"
+            label="选择店铺"
+            rules={[{ required: true, message: '请选择至少一个店铺' }]}
           >
-            <Input placeholder="请��入商品名称" />
-          </Form.Item>
-          {selectionMethod === 'crawler' ? (
-            <Form.Item
-              name="link"
-              label="商品链接"
-              rules={[
-                { required: true, message: '请输入商品链接' },
-                { type: 'url', message: '请输入有效的URL' }
+            <Select
+              mode="multiple"
+              placeholder="请选择要发布的店铺"
+              style={{ width: '100%' }}
+              options={[
+                {
+                  label: '店铺组',
+                  options: storeGroups.map(group => ({
+                    label: `${group.name} (${group.storeIds.length}家店铺)`,
+                    value: `group:${group.id}`,
+                  })),
+                },
+                {
+                  label: '单个店铺',
+                  options: storeAccounts.map(account => ({
+                    label: `${account.name} (${account.platform})`,
+                    value: account.id,
+                  })),
+                },
               ]}
-            >
-              <Input placeholder="请输入闲鱼商品链接" />
-            </Form.Item>
-          ) : (
-            <>
-              <Form.Item
-                name="price"
-                label="商品价格"
-                rules={[{ required: true, message: '请输入商品价格' }]}
-              >
-                <Input prefix="￥" type="number" placeholder="请输入商品价格" />
-              </Form.Item>
-              <Form.Item
-                name="description"
-                label="商品描述"
-              >
-                <TextArea rows={4} placeholder="请输入商品描述" />
-              </Form.Item>
-            </>
-          )}
-        </Form>
-      </Modal>
+              onChange={(values: string[]) => {
+                // 处理组选择，展开组内所有店铺
+                const selectedStores = values.map(value => {
+                  if (value.startsWith('group:')) {
+                    const groupId = value.replace('group:', '');
+                    const group = storeGroups.find(g => g.id === groupId);
+                    return group ? group.storeIds : [];
+                  }
+                  return value;
+                }).flat();
+                
+                // 去重
+                const uniqueStores = [...new Set(selectedStores)];
+                form.setFieldValue('stores', uniqueStores);
+              }}
+            />
+          </Form.Item>
 
-      {/* 导出设置弹窗 */}
-      <Modal
-        title="导出设置"
-        open={isExportModalVisible}
-        onOk={onExportModalOk}
-        onCancel={() => setIsExportModalVisible(false)}
-      >
-        <Form
-          form={exportForm}
-          layout="vertical"
-          initialValues={{ format: 'excel' }}
-        >
           <Form.Item
-            name="path"
-            label="导出路径"
-            rules={[{ required: true, message: '请选择导出路径' }]}
+            name="priceAdjustment"
+            label="价格调整"
+            tooltip="输入调整比例，例如：0.1表示上调10%，-0.1表示下调10%"
           >
-            <Input placeholder="请选择导出路径" />
-          </Form.Item>
-          <Form.Item
-            name="nameRule"
-            label="文件命名规则"
-            rules={[{ required: true, message: '请输入文件命名规则' }]}
-          >
-            <Input placeholder="例如：选品数据_{date}" />
-          </Form.Item>
-          <Form.Item
-            name="format"
-            label="导出格式"
-            rules={[{ required: true, message: '请选择导出格式' }]}
-          >
-            <Select>
-              <Select.Option value="excel">Excel</Select.Option>
-              <Select.Option value="csv">CSV</Select.Option>
-            </Select>
+            <InputNumber<number>
+              style={{ width: '100%' }}
+              step={0.01}
+              formatter={value => value ? `${(value * 100).toFixed(0)}%` : ''}
+              parser={value => value ? Number(value.replace('%', '')) / 100 : 0}
+            />
           </Form.Item>
         </Form>
       </Modal>
