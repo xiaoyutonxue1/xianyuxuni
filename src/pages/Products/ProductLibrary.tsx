@@ -128,6 +128,35 @@ const statusConfig = {
   },
 };
 
+// 分配状态配置
+const distributeStatusConfig = {
+  draft: { 
+    text: '草稿', 
+    color: 'default',
+    icon: null 
+  },
+  pending: { 
+    text: '待发布', 
+    color: 'processing',
+    icon: <ClockCircleOutlined style={{ marginRight: 4 }} /> 
+  },
+  published: { 
+    text: '已发布', 
+    color: 'success',
+    icon: <CheckCircleFilled style={{ marginRight: 4 }} /> 
+  },
+  failed: { 
+    text: '发布失败', 
+    color: 'error',
+    icon: <CloseCircleFilled style={{ marginRight: 4 }} /> 
+  },
+  offline: { 
+    text: '已下架', 
+    color: 'default',
+    icon: <StopOutlined style={{ marginRight: 4 }} /> 
+  },
+};
+
 const ProductLibrary: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(mockProducts);
@@ -307,13 +336,74 @@ const ProductLibrary: React.FC = () => {
       sortDirections: ['ascend', 'descend'] as const,
     },
     {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (createdAt: string) => dayjs(createdAt).format('YYYY/MM/DD HH:mm:ss'),
-      sorter: (a: Product, b: Product) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
-      sortDirections: ['ascend', 'descend'] as const,
-      defaultSortOrder: 'descend',
+      title: '发布店铺',
+      key: 'stores',
+      width: 200,
+      render: (_: any, record: Product) => {
+        if (!record.distributeInfo?.length) return '-';
+        return (
+          <Space wrap>
+            {record.distributeInfo.map((info, index) => (
+              <Tag key={index} color="blue">
+                {storeAccounts.find(store => store.id === info.storeId)?.name || '未知店铺'}
+              </Tag>
+            ))}
+          </Space>
+        );
+      },
+    },
+    {
+      title: '发布状态',
+      key: 'distributeStatus',
+      width: 200,
+      render: (_: any, record: Product) => {
+        if (!record.distributeInfo?.length) return '-';
+        return (
+          <Space wrap>
+            {record.distributeInfo.map((info, index) => {
+              const status = info.status;
+              const config = distributeStatusConfig[status];
+              const store = storeAccounts.find(s => s.id === info.storeId);
+              return (
+                <Tag key={index} color={config.color}>
+                  {config.icon}
+                  {store?.name}: {config.text}
+                </Tag>
+              );
+            })}
+          </Space>
+        );
+      },
+      filters: [
+        { text: '草稿', value: 'draft' },
+        { text: '待发布', value: 'pending' },
+        { text: '已发布', value: 'published' },
+        { text: '发布失败', value: 'failed' },
+        { text: '已下架', value: 'offline' },
+      ],
+      onFilter: (value: any, record: Product) => 
+        record.distributeInfo?.some(info => info.status === value) ?? false,
+    },
+    {
+      title: '商品状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 140,
+      render: (status: keyof typeof statusConfig) => (
+        <Tag color={statusConfig[status].color}>
+          {statusConfig[status].icon}
+          {statusConfig[status].text}
+        </Tag>
+      ),
+      filters: [
+        { text: '手动模式', value: 'manual' },
+        { text: '待爬虫', value: 'crawler_pending' },
+        { text: '爬虫进行中', value: 'crawler_running' },
+        { text: '爬虫成功', value: 'crawler_success' },
+        { text: '爬虫失败', value: 'crawler_failed' },
+        { text: '已下架', value: 'inactive' },
+      ],
+      onFilter: (value: any, record: Product) => record.status === value,
     },
     {
       title: '完整度',
@@ -373,27 +463,6 @@ const ProductLibrary: React.FC = () => {
       },
       sorter: (a: Product, b: Product) => calculateCompleteness(a) - calculateCompleteness(b),
       sortDirections: ['descend', 'ascend'] as const,
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 140,
-      render: (status: keyof typeof statusConfig) => (
-        <Tag color={statusConfig[status].color}>
-          {statusConfig[status].icon}
-          {statusConfig[status].text}
-        </Tag>
-      ),
-      filters: [
-        { text: '手动模式', value: 'manual' },
-        { text: '待爬虫', value: 'crawler_pending' },
-        { text: '爬虫进行中', value: 'crawler_running' },
-        { text: '爬虫成功', value: 'crawler_success' },
-        { text: '爬虫失败', value: 'crawler_failed' },
-        { text: '已下架', value: 'inactive' },
-      ],
-      onFilter: (value: any, record: Product) => record.status === value,
     },
     {
       title: '操作',

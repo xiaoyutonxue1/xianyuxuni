@@ -1,31 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, message, InputNumber, Alert } from 'antd';
-import { ShoppingCartOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import { getProducts, createProduct } from '../../services/productService';
-import type { ProductListingItem } from '../../types/product';
-import type { ProductQueryParams } from '../../services/productService';
+import { Card, Table, Button, Input, Space, message, Tag, Modal, Form, Alert, Select } from 'antd';
+import { PlusOutlined, ShopOutlined } from '@ant-design/icons';
+import type { Product } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
+import type { TableProps } from 'antd';
+import type { ColumnsType } from 'antd/es/table/interface';
 
 const { Search } = Input;
 
 const ProductSelection: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ProductListingItem[]>([]);
+  const [data, setData] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<ProductListingItem[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
   const { storeAccounts, storeGroups } = useSettingsStore();
 
   // 获取商品列表
-  const fetchProducts = async (params: ProductQueryParams = { page: 1, pageSize: 10 }) => {
+  const fetchProducts = async () => {
     try {
       setLoading(true);
-      const response = await getProducts(params);
-      setData(response.items);
-      setTotal(response.total);
+      // TODO: 替换为实际的API调用
+      const mockData = [
+        {
+          id: '1',
+          name: '示例商品1',
+          category: 'study' as const,
+          price: 99.99,
+          stock: 100,
+          status: 'manual' as const,
+          createdAt: new Date().toISOString(),
+          store: '默认店铺',
+          description: '示例描述',
+          source: 'manual' as const,
+          hasSpecs: false,
+        },
+        // ... 更多模拟数据
+      ];
+      setData(mockData);
+      setTotal(mockData.length);
     } catch (error) {
       message.error('获取商品列表失败');
     } finally {
@@ -37,114 +52,135 @@ const ProductSelection: React.FC = () => {
     fetchProducts();
   }, []);
 
-  // 选择商品
-  const handleSelect = () => {
-    if (selectedProducts.length === 0) {
-      message.warning('请选择要发布的商品');
-      return;
-    }
-    setIsModalVisible(true);
-  };
-
-  // 发布商品
+  // 处理发布
   const handlePublish = async () => {
     try {
       const values = await form.validateFields();
-      const { stores, priceAdjustment } = values;
+      const { stores, templateId } = values;
 
-      // 为每个选中的商品创建店铺商品
-      const promises = selectedProducts.map(product => 
-        stores.map((storeId: string) => {
-          const adjustedPrice = Number(product.price) * (1 + (priceAdjustment || 0));
-          return createProduct({
+      // 处理店铺组,展开所有店铺ID
+      const selectedStores = stores.map((value: string) => {
+        if (value.startsWith('group:')) {
+          const groupId = value.replace('group:', '');
+          const group = storeGroups.find(g => g.id === groupId);
+          return group ? group.storeIds : [];
+        }
+        return value;
+      }).flat();
+
+      // 去重
+      const uniqueStores = [...new Set(selectedStores)];
+      
+      // 更新选中商品的分配信息
+      const updatedProducts = data.map(product => {
+        if (selectedRowKeys.includes(product.id)) {
+          return {
             ...product,
-            id: undefined,
-            store: storeId,
-            price: adjustedPrice.toFixed(2),
-            status: 'draft',
-            distributedTo: [storeId],
-          });
-        })
-      ).flat();
+            distributeInfo: uniqueStores.map(storeId => ({
+              storeId,
+              templateId,
+              status: 'pending' as const,
+              distributedAt: new Date().toISOString(),
+            }))
+          };
+        }
+        return product;
+      });
 
-      await Promise.all(promises);
-      message.success('发布成功');
+      setData(updatedProducts);
+      message.success('商品发布成功');
       setIsModalVisible(false);
-      form.resetFields();
       setSelectedRowKeys([]);
       setSelectedProducts([]);
+      form.resetFields();
     } catch (error) {
       message.error('发布失败');
     }
   };
 
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (keys: React.Key[], rows: ProductListingItem[]) => {
-      setSelectedRowKeys(keys);
-      setSelectedProducts(rows);
-    },
-  };
-
-  const columns: ColumnsType<ProductListingItem> = [
+  const columns: ColumnsType<Product> = [
     {
       title: '商品名称',
       dataIndex: 'name',
       key: 'name',
-      width: 200,
     },
     {
       title: '分类',
       dataIndex: 'category',
       key: 'category',
-      width: 120,
     },
     {
-      title: '原价',
-      dataIndex: 'originalPrice',
-      key: 'originalPrice',
-      width: 100,
-      render: (price: string) => `￥${price}`,
-    },
-    {
-      title: '建议售价',
+      title: '价格',
       dataIndex: 'price',
       key: 'price',
-      width: 100,
-      render: (price: string) => `￥${price}`,
+      render: (price: number) => `¥${price}`,
+    },
+    {
+      title: '库存',
+      dataIndex: 'stock',
+      key: 'stock',
+    },
+    {
+      title: '发布状态',
+      key: 'distributeStatus',
+      render: (_, record: Product) => {
+        if (!record.distributeInfo?.length) return '-';
+        return (
+          <Space>
+            {record.distributeInfo.map((info, index) => {
+              const statusMap = {
+                draft: { color: 'default', text: '草稿' },
+                pending: { color: 'processing', text: '待发布' },
+                published: { color: 'success', text: '已发布' },
+                failed: { color: 'error', text: '发布失败' },
+                offline: { color: 'default', text: '已下架' },
+              };
+              const { color, text } = statusMap[info.status];
+              const store = storeAccounts.find(s => s.id === info.storeId);
+              return (
+                <Tag key={index} color={color}>
+                  {store?.name}: {text}
+                </Tag>
+              );
+            })}
+          </Space>
+        );
+      },
     },
   ];
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys: React.Key[], selectedRows: Product[]) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+      setSelectedProducts(selectedRows);
+    },
+  };
 
   return (
     <div className="space-y-4">
       <Card>
         <div className="flex justify-between">
-          <Button
-            type="primary"
-            icon={<ShoppingCartOutlined />}
-            onClick={handleSelect}
-            disabled={selectedRowKeys.length === 0}
-          >
-            发布到店铺
-          </Button>
           <Space>
-            <Select
-              placeholder="选择分类"
-              style={{ width: 200 }}
-              allowClear
-              onChange={value => fetchProducts({ page: 1, pageSize: 10, category: value })}
-              options={[
-                { label: '游戏充值', value: '游戏充值' },
-                { label: '账号租赁', value: '账号租赁' },
-                { label: '代练代打', value: '代练代打' },
-              ]}
-            />
-            <Search
-              placeholder="搜索商品"
-              style={{ width: 300 }}
-              onSearch={value => fetchProducts({ page: 1, pageSize: 10, keyword: value })}
-            />
+            <Button
+              type="primary"
+              icon={<ShopOutlined />}
+              onClick={() => {
+                if (selectedRowKeys.length === 0) {
+                  message.warning('请先选择要发布的商品');
+                  return;
+                }
+                setIsModalVisible(true);
+              }}
+            >
+              发布商品
+            </Button>
           </Space>
+          <Search
+            placeholder="搜索商品"
+            style={{ width: 300 }}
+            onSearch={value => console.log(value)}
+          />
         </div>
       </Card>
 
@@ -157,7 +193,6 @@ const ProductSelection: React.FC = () => {
           total,
           showSizeChanger: true,
           showQuickJumper: true,
-          onChange: (page, pageSize) => fetchProducts({ page, pageSize }),
         }}
         loading={loading}
       />
@@ -206,35 +241,21 @@ const ProductSelection: React.FC = () => {
                   })),
                 },
               ]}
-              onChange={(values: string[]) => {
-                // 处理组选择，展开组内所有店铺
-                const selectedStores = values.map(value => {
-                  if (value.startsWith('group:')) {
-                    const groupId = value.replace('group:', '');
-                    const group = storeGroups.find(g => g.id === groupId);
-                    return group ? group.storeIds : [];
-                  }
-                  return value;
-                }).flat();
-                
-                // 去重
-                const uniqueStores = [...new Set(selectedStores)];
-                form.setFieldValue('stores', uniqueStores);
-              }}
             />
           </Form.Item>
 
           <Form.Item
-            name="priceAdjustment"
-            label="价格调整"
-            tooltip="输入调整比例，例如：0.1表示上调10%，-0.1表示下调10%"
+            name="templateId"
+            label="选择模板"
+            rules={[{ required: true, message: '请选择模板' }]}
           >
-            <InputNumber<number>
-              style={{ width: '100%' }}
-              step={0.01}
-              formatter={value => value ? `${(value * 100).toFixed(0)}%` : ''}
-              parser={value => value ? Number(value.replace('%', '')) / 100 : 0}
-            />
+            <Select placeholder="请选择模板">
+              {storeAccounts[0]?.productTemplates?.map(template => (
+                <Select.Option key={template.id} value={template.id}>
+                  {template.name}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Card, Tabs, Form, Input, Button, Select, InputNumber, Switch, Space, Tag, message, Modal, Table } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Tabs, Form, Input, Button, Select, InputNumber, Switch, Space, Tag, message, Modal, Table, Divider } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
-import type { StoreGroup, StoreAccount, DeliveryMethodSetting } from '../../store/settingsStore';
+import type { StoreGroup, StoreAccount, DeliveryMethodSetting, ProductTemplate } from '../../store/settingsStore';
 import { v4 as uuidv4 } from 'uuid';
 
 const { TabPane } = Tabs;
@@ -55,6 +55,316 @@ const defaultDeliveryMethods: DeliveryMethodSetting[] = [
   { id: 'quarkDisk', name: '夸克网盘链接', value: 'quarkDisk', isEnabled: true },
   { id: 'quarkDiskGroup', name: '夸克网盘群链接', value: 'quarkDiskGroup', isEnabled: true }
 ];
+
+// 商品模板表单
+const TemplateForm: React.FC<{
+  initialValues?: ProductTemplate;
+  onSubmit: (values: ProductTemplate) => void;
+  onCancel: () => void;
+}> = ({ initialValues, onSubmit, onCancel }) => {
+  const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (initialValues) {
+      form.setFieldsValue(initialValues);
+    }
+  }, [initialValues, form]);
+
+  return (
+    <Form
+      form={form}
+      layout="vertical"
+      onFinish={onSubmit}
+      initialValues={initialValues}
+    >
+      <Form.Item
+        name="name"
+        label="模板名称"
+        rules={[{ required: true, message: '请输入模板名称' }]}
+      >
+        <Input placeholder="请输入模板名称" />
+      </Form.Item>
+
+      <Form.Item
+        name="title"
+        label="标题模板"
+        tooltip="使用 {title} 表示原始标题"
+        rules={[{ required: true, message: '请输入标题模板' }]}
+      >
+        <Input.TextArea
+          placeholder="例如：【正版资源】{title}"
+          rows={2}
+        />
+      </Form.Item>
+
+      <Form.Item
+        name="description"
+        label="文案模板"
+        tooltip="使用 {description} 表示原始描述"
+        rules={[{ required: true, message: '请输入文案模板' }]}
+      >
+        <Input.TextArea
+          placeholder="例如：✨ {description}&#10;&#10;💫 发货方式：网盘自动发货&#10;🌟 售后服务：终身有效"
+          rows={4}
+        />
+      </Form.Item>
+
+      <Form.Item name="isDefault" valuePropName="checked">
+        <Switch checkedChildren="默认模板" unCheckedChildren="普通模板" />
+      </Form.Item>
+
+      <Form.Item className="mb-0 text-right">
+        <Space>
+          <Button onClick={onCancel}>取消</Button>
+          <Button type="primary" htmlType="submit">
+            确定
+          </Button>
+        </Space>
+      </Form.Item>
+    </Form>
+  );
+};
+
+// 商品模板列表
+const TemplateList: React.FC<{
+  templates: ProductTemplate[];
+  onEdit: (template: ProductTemplate) => void;
+  onDelete: (templateId: string) => void;
+  onSetDefault: (templateId: string) => void;
+}> = ({ templates, onEdit, onDelete, onSetDefault }) => {
+  return (
+    <div className="space-y-4">
+      {templates.map(template => (
+        <Card
+          key={template.id}
+          size="small"
+          title={
+            <Space>
+              {template.name}
+              {template.isDefault && <Tag color="blue">默认</Tag>}
+            </Space>
+          }
+          extra={
+            <Space>
+              {!template.isDefault && (
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => onSetDefault(template.id)}
+                >
+                  设为默认
+                </Button>
+              )}
+              <Button
+                type="link"
+                size="small"
+                onClick={() => onEdit(template)}
+              >
+                编辑
+              </Button>
+              <Button
+                type="link"
+                danger
+                size="small"
+                onClick={() => onDelete(template.id)}
+              >
+                删除
+              </Button>
+            </Space>
+          }
+        >
+          <div className="space-y-2">
+            <div>
+              <div className="text-gray-500 mb-1">标题模板：</div>
+              <div className="bg-gray-50 p-2 rounded">{template.title}</div>
+            </div>
+            <div>
+              <div className="text-gray-500 mb-1">文案模板：</div>
+              <div className="bg-gray-50 p-2 rounded whitespace-pre-wrap">{template.description}</div>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+};
+
+// 店铺表单
+const StoreForm: React.FC<{
+  initialValues?: StoreAccount;
+  onSubmit: (values: StoreAccount) => void;
+  onCancel: () => void;
+}> = ({ initialValues, onSubmit, onCancel }) => {
+  const [form] = Form.useForm();
+  const [isTemplateModalVisible, setIsTemplateModalVisible] = useState(false);
+  const [currentTemplate, setCurrentTemplate] = useState<ProductTemplate | undefined>();
+  const [templates, setTemplates] = useState<ProductTemplate[]>(
+    initialValues?.features.templates || []
+  );
+
+  useEffect(() => {
+    if (initialValues) {
+      form.setFieldsValue(initialValues);
+      setTemplates(initialValues.features.templates);
+    }
+  }, [initialValues, form]);
+
+  const handleTemplateSubmit = (values: ProductTemplate) => {
+    let newTemplates: ProductTemplate[];
+    if (currentTemplate) {
+      // 编辑现有模板
+      newTemplates = templates.map(t => 
+        t.id === currentTemplate.id ? { ...values, id: currentTemplate.id } : t
+      );
+    } else {
+      // 添加新模板
+      const newTemplate = {
+        ...values,
+        id: uuidv4()
+      };
+      newTemplates = [...templates, newTemplate];
+    }
+
+    // 如果设置了新的默认模板，需要取消其他模板的默认状态
+    if (values.isDefault) {
+      newTemplates = newTemplates.map(t => ({
+        ...t,
+        isDefault: t.id === (currentTemplate?.id || newTemplate.id)
+      }));
+    }
+
+    setTemplates(newTemplates);
+    setIsTemplateModalVisible(false);
+    setCurrentTemplate(undefined);
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这个模板吗？删除后无法恢复。',
+      onOk: () => {
+        setTemplates(templates.filter(t => t.id !== templateId));
+      }
+    });
+  };
+
+  const handleSetDefaultTemplate = (templateId: string) => {
+    setTemplates(templates.map(t => ({
+      ...t,
+      isDefault: t.id === templateId
+    })));
+  };
+
+  const handleSubmit = (values: any) => {
+    onSubmit({
+      ...values,
+      features: {
+        ...values.features,
+        templates
+      }
+    });
+  };
+
+  return (
+    <>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={handleSubmit}
+        initialValues={initialValues}
+      >
+        <Form.Item
+          name="name"
+          label="店铺名称"
+          rules={[{ required: true, message: '请输入店铺名称' }]}
+        >
+          <Input placeholder="请输入店铺名称" />
+        </Form.Item>
+
+        <Form.Item
+          name="platform"
+          label="所属平台"
+          rules={[{ required: true, message: '请选择所属平台' }]}
+        >
+          <Select>
+            <Select.Option value="闲鱼">闲鱼</Select.Option>
+            <Select.Option value="淘宝">淘宝</Select.Option>
+          </Select>
+        </Form.Item>
+
+        <Form.Item
+          name={['features', 'priceAdjustment']}
+          label="价格调整"
+          tooltip="商品价格的上浮比例，0.1 表示上浮 10%"
+        >
+          <InputNumber
+            min={0}
+            max={1}
+            step={0.1}
+            style={{ width: '100%' }}
+            placeholder="请输入价格调整比例"
+          />
+        </Form.Item>
+
+        <Divider orientation="left">商品模板</Divider>
+
+        <div className="mb-4">
+          <Button
+            type="dashed"
+            onClick={() => {
+              setCurrentTemplate(undefined);
+              setIsTemplateModalVisible(true);
+            }}
+            block
+          >
+            <PlusOutlined /> 添加模板
+          </Button>
+        </div>
+
+        <TemplateList
+          templates={templates}
+          onEdit={(template) => {
+            setCurrentTemplate(template);
+            setIsTemplateModalVisible(true);
+          }}
+          onDelete={handleDeleteTemplate}
+          onSetDefault={handleSetDefaultTemplate}
+        />
+
+        <Divider />
+
+        <Form.Item className="mb-0 text-right">
+          <Space>
+            <Button onClick={onCancel}>取消</Button>
+            <Button type="primary" htmlType="submit">
+              确定
+            </Button>
+          </Space>
+        </Form.Item>
+      </Form>
+
+      <Modal
+        title={currentTemplate ? '编辑模板' : '添加模板'}
+        open={isTemplateModalVisible}
+        onCancel={() => {
+          setIsTemplateModalVisible(false);
+          setCurrentTemplate(undefined);
+        }}
+        footer={null}
+        width={600}
+      >
+        <TemplateForm
+          initialValues={currentTemplate}
+          onSubmit={handleTemplateSubmit}
+          onCancel={() => {
+            setIsTemplateModalVisible(false);
+            setCurrentTemplate(undefined);
+          }}
+        />
+      </Modal>
+    </>
+  );
+};
 
 const Settings: React.FC = () => {
   const { 
@@ -293,6 +603,51 @@ const Settings: React.FC = () => {
     },
   ];
 
+  // 发货方式设置组件
+  const DeliveryMethodSettings: React.FC = () => {
+    const { productSettings, updateProductSettings } = useSettingsStore();
+    const { deliveryMethods = [] } = productSettings;
+
+    const handleToggleMethod = (methodId: string) => {
+      const currentMethods = [...deliveryMethods];
+      const enabledCount = currentMethods.filter(m => m.isEnabled).length;
+      const isCurrentEnabled = currentMethods.find(m => m.id === methodId)?.isEnabled;
+      
+      if (enabledCount === 1 && isCurrentEnabled) {
+        message.warning('至少需要保留一种发货方式');
+        return;
+      }
+      
+      const updatedMethods = currentMethods.map(m =>
+        m.id === methodId ? { ...m, isEnabled: !m.isEnabled } : m
+      );
+      
+      updateProductSettings({
+        deliveryMethods: updatedMethods,
+      });
+    };
+
+    return (
+      <div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {deliveryMethods.map(method => (
+            <Tag
+              key={method.id}
+              color={method.isEnabled ? 'blue' : 'default'}
+              className="text-base py-1 px-3 cursor-pointer"
+              onClick={() => handleToggleMethod(method.id)}
+            >
+              {method.name}
+            </Tag>
+          ))}
+        </div>
+        <div className="text-gray-500 text-sm">
+          点击标签可以启用/禁用对应的发货方式，至少需要保留一种发货方式
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6">
       <Tabs defaultActiveKey="store">
@@ -374,40 +729,7 @@ const Settings: React.FC = () => {
             </Card>
 
             <Card title="发货方式设置" className="shadow-sm">
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  {defaultDeliveryMethods.map(method => (
-                    <Tag
-                      key={method.id}
-                      color={productSettings?.deliveryMethods?.find(m => m.id === method.id)?.isEnabled ? 'blue' : 'default'}
-                      className="text-base py-1 px-3 cursor-pointer"
-                      onClick={() => {
-                        const currentMethods = productSettings?.deliveryMethods || defaultDeliveryMethods;
-                        const enabledCount = currentMethods.filter(m => m.isEnabled).length;
-                        const isCurrentEnabled = currentMethods.find(m => m.id === method.id)?.isEnabled;
-                        
-                        if (enabledCount === 1 && isCurrentEnabled) {
-                          message.warning('至少需要保留一种发货方式');
-                          return;
-                        }
-                        
-                        const updatedMethods = currentMethods.map(m =>
-                          m.id === method.id ? { ...m, isEnabled: !m.isEnabled } : m
-                        );
-                        
-                        updateProductSettings({
-                          deliveryMethods: updatedMethods,
-                        });
-                      }}
-                    >
-                      {method.name}
-                    </Tag>
-                  ))}
-                </div>
-                <div className="text-gray-500 text-sm">
-                  点击标签可以启用/禁用对应的发货方式，至少需要保留一种发货方式
-                </div>
-              </div>
+              <DeliveryMethodSettings />
             </Card>
 
             <Card title="分配设置" className="shadow-sm">
@@ -495,54 +817,15 @@ const Settings: React.FC = () => {
           setCurrentStore(undefined);
         }}
       >
-        <Form form={storeForm} layout="vertical">
-          <Form.Item
-            name="name"
-            label="店铺名称"
-            rules={[{ required: true, message: '请输入店铺名称' }]}
-          >
-            <Input placeholder="请输入店铺名称" />
-          </Form.Item>
-          <Form.Item
-            name="platform"
-            label="所属平台"
-            rules={[{ required: true, message: '请选择所属平台' }]}
-            initialValue="闲鱼"
-          >
-            <Select
-              placeholder="请选择所属平台"
-              options={[
-                { label: '闲鱼', value: '闲鱼' },
-                { label: '小红书', value: '小红书' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item
-            name="priceAdjustment"
-            label="价格系数"
-            tooltip="商品价格将会根据此系数进行调整，例如：0.1表示上调10%"
-            initialValue={0}
-          >
-            <InputNumber<number>
-              style={{ width: '100%' }}
-              step={0.01}
-              formatter={value => value ? `${(value * 100).toFixed(0)}%` : '0%'}
-              parser={value => value ? Number(value.replace('%', '')) / 100 : 0}
-            />
-          </Form.Item>
-          <Form.Item
-            name="slogan"
-            label="店铺标语"
-          >
-            <Input.TextArea placeholder="请输入店铺标语" />
-          </Form.Item>
-          <Form.Item
-            name="servicePromise"
-            label="服务承诺"
-          >
-            <Input.TextArea placeholder="请输入服务承诺" />
-          </Form.Item>
-        </Form>
+        <StoreForm
+          initialValues={currentStore}
+          onSubmit={handleSaveStore}
+          onCancel={() => {
+            setIsStoreModalVisible(false);
+            storeForm.resetFields();
+            setCurrentStore(undefined);
+          }}
+        />
       </Modal>
 
       {/* 店铺组表单弹窗 */}

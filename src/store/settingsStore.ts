@@ -1,16 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface ProductTemplate {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  isDefault?: boolean;
+}
+
 export interface StoreAccount {
   id: string;
   name: string;
   platform: string;
   features: {
     priceAdjustment: number;
-    customFields?: {
-      slogan?: string;
-      servicePromise?: string;
-    };
+    templates: ProductTemplate[];
   };
 }
 
@@ -110,10 +115,65 @@ const defaultDeliveryMethods: DeliveryMethodSetting[] = [
   }
 ];
 
+const defaultStores: StoreAccount[] = [
+  {
+    id: '1',
+    name: '水城有趣的海鲜',
+    platform: '闲鱼',
+    features: {
+      priceAdjustment: 0.1,
+      templates: [
+        {
+          id: '1',
+          name: '标准模板',
+          title: '【正版资源】{title}',
+          description: '✨ {description}\n\n💫 发货方式：网盘自动发货\n🌟 售后服务：终身有效',
+          isDefault: true
+        },
+        {
+          id: '2',
+          name: '促销模板',
+          title: '【限时特惠】{title}',
+          description: '🔥 限时优惠\n✨ {description}\n\n💫 自动发货\n🌟 永久有效'
+        }
+      ]
+    }
+  },
+  {
+    id: '2',
+    name: '巨全资料库',
+    platform: '闲鱼',
+    features: {
+      priceAdjustment: 0,
+      templates: [
+        {
+          id: '1',
+          name: '默认模板',
+          title: '【超值优惠】{title}',
+          description: '📚 {description}\n\n⚡ 自动发货\n💎 永久有效',
+          isDefault: true
+        }
+      ]
+    }
+  }
+];
+
+const defaultCategories = [
+  '学习资料',
+  '日剧',
+  '美剧',
+  '漫画',
+  '韩剧',
+  '国内电视剧',
+  '动漫',
+  '电子书',
+  '电影'
+];
+
 const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      storeAccounts: [],
+      storeAccounts: defaultStores,
       storeGroups: [],
       productSettings: {
         defaultDistributeAccounts: [],
@@ -127,7 +187,7 @@ const useSettingsStore = create<SettingsState>()(
           },
           enableSmartContent: false,
         },
-        categories: [],
+        categories: defaultCategories,
         deliveryMethods: defaultDeliveryMethods,
         defaultSpecName: '发货网盘',
       },
