@@ -1,111 +1,49 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, InputNumber, Button, Modal, Switch, Progress, Space } from 'antd';
-import type { Product, CreateProductRequest } from '../../types/product';
+import { Form, Input, Select, InputNumber, Button, Modal, Switch, Progress, Tooltip } from 'antd';
+import type { CreateProductRequest } from '../../types/product';
+import { categoryOptions, deliveryMethods } from '../../utils/constants';
+import { calculateCompleteness, getMissingFields } from '../../utils/productCompleteness';
 
-const { Option } = Select;
-
-// 发货方式选项
-const deliveryMethods = [
-  { label: '百度网盘链接', value: 'baiduDisk' },
-  { label: '百度网盘群链接', value: 'baiduDiskGroup' },
-  { label: '百度网盘群口令', value: 'baiduDiskGroupCode' },
-  { label: '夸克网盘链接', value: 'quarkDisk' },
-  { label: '夸克网盘群链接', value: 'quarkDiskGroup' },
-];
-
-// 商品分类选项
-const categoryOptions = [
-  { label: '学习资料', value: 'study' },
-  { label: '日剧', value: 'japanese_drama' },
-  { label: '美剧', value: 'american_drama' },
-  { label: '漫画', value: 'manga' },
-  { label: '韩剧', value: 'korean_drama' },
-  { label: '国内电视剧', value: 'chinese_drama' },
-  { label: '动漫', value: 'anime' },
-  { label: '电子书', value: 'ebook' },
-  { label: '电影', value: 'movie' },
-];
-
-interface ProductFormProps {
-  initialData?: Product;
+interface CreateProductFormProps {
   onSubmit: (values: CreateProductRequest) => Promise<void>;
   loading?: boolean;
   onCancel: () => void;
 }
 
-const ProductForm: React.FC<ProductFormProps> = ({
-  initialData,
+const CreateProductForm: React.FC<CreateProductFormProps> = ({
   onSubmit,
   loading = false,
   onCancel
 }) => {
   const [form] = Form.useForm();
-  const [hasSpecs, setHasSpecs] = useState(initialData?.hasSpecs || false);
+  const [hasSpecs, setHasSpecs] = useState(false);
   const [addMode, setAddMode] = useState<'manual' | 'crawler'>('manual');
-  const [progress, setProgress] = useState(0);
+  const [completeness, setCompleteness] = useState(0);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
 
-  // 计算表单填写进度
-  const calculateProgress = (values: any) => {
-    const requiredFields = ['name'];
-    let completedFields = 0;
-    let totalFields = requiredFields.length;
-
-    // 检查基础必填字段
-    requiredFields.forEach(field => {
-      if (values[field]) completedFields++;
-    });
-
-    // 检查商品分类
-    if (addMode === 'manual') {
-      totalFields++;
-      if (values.category) completedFields++;
-    } else {
-      totalFields++;
-      if (values.productUrl) completedFields++;
-    }
-
-    // 检查规格信息
-    if (!hasSpecs) {
-      // 单规格模式
-      totalFields += 2; // 价格和发货方式是必填
-      if (values.price) completedFields++;
-      if (values.deliveryMethod) completedFields++;
-    } else {
-      // 多规格模式
-      if (values.specs && values.specs.length > 0) {
-        values.specs.forEach((spec: any) => {
-          totalFields += 3; // 规格名称、价格、发货方式
-          if (spec.name) completedFields++;
-          if (spec.price) completedFields++;
-          if (spec.deliveryMethod) completedFields++;
-        });
-      } else {
-        totalFields += 3; // 至少需要一个规格
-      }
-    }
-
-    return Math.round((completedFields / totalFields) * 100);
+  // 获取当前发货方式的配置
+  const getDeliveryMethodConfig = (methodValue: string) => {
+    return deliveryMethods.find(method => method.value === methodValue);
   };
 
-  // 监听表单值变化
-  const handleFormChange = () => {
-    const values = form.getFieldsValue();
-    const newProgress = calculateProgress(values);
-    setProgress(newProgress);
+  // 验证发货信息格式
+  const validateDeliveryInfo = (_: any, value: string) => {
+    const currentMethod = form.getFieldValue('deliveryMethod');
+    const methodConfig = getDeliveryMethodConfig(currentMethod);
+    
+    if (!methodConfig) return Promise.resolve();
+    
+    const pattern = new RegExp(methodConfig.pattern);
+    if (!pattern.test(value)) {
+      return Promise.reject(new Error(`格式错误，正确示例：${methodConfig.example}`));
+    }
+    return Promise.resolve();
   };
-
-  useEffect(() => {
-    // 初始化进度
-    const values = form.getFieldsValue();
-    const initialProgress = calculateProgress(values);
-    setProgress(initialProgress);
-  }, [hasSpecs, addMode]);
 
   // 处理规格开关变化
   const handleSpecsChange = (checked: boolean) => {
     setHasSpecs(checked);
     if (checked) {
-      // 切换到多规格时，添加一个默认规格
       form.setFieldsValue({
         price: undefined,
         stock: undefined,
@@ -119,7 +57,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
         }]
       });
     } else {
-      // 切换到单规格时，清空规格信息
       form.setFieldsValue({
         specs: undefined,
         deliveryMethod: 'baiduDisk',
@@ -127,132 +64,131 @@ const ProductForm: React.FC<ProductFormProps> = ({
         stock: 999
       });
     }
+    updateCompleteness();
   };
 
   // 处理添加模式切换
   const handleModeChange = (mode: 'manual' | 'crawler') => {
     setAddMode(mode);
     form.resetFields(['category', 'productUrl', 'price', 'stock', 'deliveryMethod', 'deliveryInfo', 'specs']);
+    updateCompleteness();
   };
 
-  // 表单提交处理
-  const handleSubmit = async (values: any) => {
-    try {
-      const submitData: CreateProductRequest = {
-        ...values,
-        hasSpecs,
-        method: addMode,
-      };
-
-      if (hasSpecs) {
-        // 多规格模式：使用specs字段
-        delete submitData.price;
-        delete submitData.stock;
-        delete submitData.deliveryMethod;
-        delete submitData.deliveryInfo;
-      } else {
-        // 单规格模式：构造saleInfo
-        submitData.saleInfo = {
-          price: values.price,
-          stock: values.stock,
-          deliveryMethod: values.deliveryMethod,
-          deliveryInfo: values.deliveryInfo,
-          originalPrice: values.price // 设置原价等于售价
-        };
-        delete submitData.price;
-        delete submitData.stock;
-        delete submitData.deliveryMethod;
-        delete submitData.deliveryInfo;
-        delete submitData.specs;
-      }
-
-      await onSubmit(submitData);
-    } catch (error) {
-      console.error(error);
-    }
+  // 更新完整度
+  const updateCompleteness = () => {
+    const values = form.getFieldsValue();
+    const currentData = {
+      ...values,
+      hasSpecs,
+      method: addMode,
+    };
+    const percent = calculateCompleteness(currentData);
+    const missing = getMissingFields(currentData);
+    setCompleteness(percent);
+    setMissingFields(missing);
   };
 
-  // 获取发货方式对应的占位符文本
-  const getDeliveryPlaceholder = (method: string) => {
-    switch (method) {
-      case 'baiduDisk':
-        return '请输入百度网盘链接';
-      case 'baiduDiskGroup':
-        return '请输入百度网盘群链接';
-      case 'baiduDiskGroupCode':
-        return '请输入百度网盘群口令';
-      case 'quarkDisk':
-        return '请输入夸克网盘链接';
-      case 'quarkDiskGroup':
-        return '请输入夸克网盘群链接';
-      default:
-        return '请输入发货信息';
-    }
+  // 监听表单值变化
+  const handleFormChange = () => {
+    updateCompleteness();
   };
+
+  // 初始化时计算完整度
+  useEffect(() => {
+    updateCompleteness();
+  }, [hasSpecs, addMode]);
 
   return (
     <Modal
-      title="新增商品"
+      title={
+        <div className="flex flex-col space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-medium">新增商品</span>
+          </div>
+          <div className="flex items-center justify-end">
+            <Tooltip
+              title={
+                missingFields.length > 0 ? (
+                  <div className="p-2">
+                    <div className="text-base text-red-500 mb-2">
+                      未填写项目
+                    </div>
+                    <div className="bg-red-50 rounded p-2">
+                      {missingFields.map((field, index) => (
+                        <div key={index} className="text-red-400 py-0.5">
+                          • {field}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null
+              }
+              overlayStyle={{ 
+                maxWidth: '400px',
+                borderRadius: '8px',
+              }}
+              overlayInnerStyle={{
+                borderRadius: '8px',
+              }}
+              color="#fff"
+              placement="bottomRight"
+            >
+              <div className="cursor-pointer" style={{ width: '300px' }}>
+                <Progress
+                  percent={completeness}
+                  size="small"
+                  format={(percent) => (
+                    <span style={{ fontSize: '12px' }}>
+                      {percent}%
+                    </span>
+                  )}
+                  strokeColor={{
+                    '0%': '#108ee9',
+                    '100%': '#87d068',
+                  }}
+                  style={{ margin: 0 }}
+                />
+              </div>
+            </Tooltip>
+          </div>
+        </div>
+      }
       open={true}
       onCancel={onCancel}
       footer={null}
       width={800}
     >
       <div className="p-4">
-        {/* 添加进度指示器 */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-600">填写进度</span>
-            <span className="text-sm text-gray-600">{progress}%</span>
+        {/* 添加模式 */}
+        <div className="mb-4">
+          <div className="text-sm mb-2">添加模式</div>
+          <div className="space-x-2">
+            <Button 
+              type={addMode === 'manual' ? 'primary' : 'default'}
+              onClick={() => handleModeChange('manual')}
+            >
+              手动添加
+            </Button>
+            <Button
+              type={addMode === 'crawler' ? 'primary' : 'default'}
+              onClick={() => handleModeChange('crawler')}
+            >
+              爬虫抓取
+            </Button>
           </div>
-          <Progress 
-            percent={progress} 
-            size="small" 
-            status={progress === 100 ? "success" : "active"}
-            strokeColor={{
-              '0%': '#108ee9',
-              '100%': '#87d068',
-            }}
-          />
         </div>
 
         <Form
           form={form}
           layout="vertical"
           initialValues={{
-            ...initialData,
-            specs: hasSpecs ? [{ 
-              name: '发货网盘',
-              stock: 999,
-              deliveryMethod: 'baiduDisk',
-              deliveryInfo: ''
-            }] : undefined,
             stock: 999,
             deliveryMethod: 'baiduDisk',
             deliveryInfo: ''
           }}
-          onFinish={handleSubmit}
+          onFinish={onSubmit}
           onValuesChange={handleFormChange}
         >
-          {/* 添加模式 */}
-          <div className="mb-4">
-            <div className="text-sm mb-2">添加模式</div>
-            <div className="space-x-2">
-              <Button 
-                type={addMode === 'manual' ? 'primary' : 'default'}
-                onClick={() => handleModeChange('manual')}
-              >
-                手动添加
-              </Button>
-              <Button
-                type={addMode === 'crawler' ? 'primary' : 'default'}
-                onClick={() => handleModeChange('crawler')}
-              >
-                爬虫抓取
-              </Button>
-            </div>
-          </div>
-
           {/* 基础信息 */}
           <div className="grid grid-cols-2 gap-4 mb-4">
             <Form.Item
@@ -270,9 +206,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
               >
                 <Select placeholder="请选择商品分类">
                   {categoryOptions.map(option => (
-                    <Option key={option.value} value={option.value}>
+                    <Select.Option key={option.value} value={option.value}>
                       {option.label}
-                    </Option>
+                    </Select.Option>
                   ))}
                 </Select>
               </Form.Item>
@@ -332,11 +268,17 @@ const ProductForm: React.FC<ProductFormProps> = ({
                       name="deliveryMethod"
                       label="发货方式"
                     >
-                      <Select placeholder="请选择发货方式">
+                      <Select 
+                        placeholder="请选择发货方式"
+                        onChange={() => {
+                          // 切换发货方式时清空发货信息
+                          form.setFieldValue('deliveryInfo', '');
+                        }}
+                      >
                         {deliveryMethods.map(method => (
-                          <Option key={method.value} value={method.value}>
+                          <Select.Option key={method.value} value={method.value}>
                             {method.label}
-                          </Option>
+                          </Select.Option>
                         ))}
                       </Select>
                     </Form.Item>
@@ -348,13 +290,19 @@ const ProductForm: React.FC<ProductFormProps> = ({
                   >
                     {({ getFieldValue }) => {
                       const currentMethod = getFieldValue('deliveryMethod');
-                      return currentMethod ? (
+                      const methodConfig = getDeliveryMethodConfig(currentMethod);
+                      
+                      return methodConfig ? (
                         <Form.Item
                           name="deliveryInfo"
                           label="发货信息"
+                          rules={[
+                            { validator: validateDeliveryInfo }
+                          ]}
+                          tooltip={methodConfig.example}
                         >
                           <Input.TextArea
-                            placeholder={getDeliveryPlaceholder(currentMethod)}
+                            placeholder={methodConfig.placeholder}
                             rows={3}
                           />
                         </Form.Item>
@@ -366,16 +314,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
               {/* 多规格表单 */}
               {hasSpecs && (
-                <Form.List
-                  name="specs"
-                  initialValue={[{ 
-                    name: '发货网盘',
-                    stock: 999,
-                    deliveryMethod: 'baiduDisk',
-                    deliveryInfo: ''
-                  }]}
-                >
-                  {(fields, { add, remove }, { errors }) => (
+                <Form.List name="specs">
+                  {(fields, { add, remove }) => (
                     <div className="space-y-4">
                       {fields.map((field, index) => (
                         <div
@@ -435,9 +375,9 @@ const ProductForm: React.FC<ProductFormProps> = ({
                               >
                                 <Select placeholder="请选择发货方式">
                                   {deliveryMethods.map(method => (
-                                    <Option key={method.value} value={method.value}>
+                                    <Select.Option key={method.value} value={method.value}>
                                       {method.label}
-                                    </Option>
+                                    </Select.Option>
                                   ))}
                                 </Select>
                               </Form.Item>
@@ -453,14 +393,20 @@ const ProductForm: React.FC<ProductFormProps> = ({
                             >
                               {({ getFieldValue }) => {
                                 const currentMethod = getFieldValue(['specs', index, 'deliveryMethod']);
-                                return currentMethod ? (
+                                const methodConfig = getDeliveryMethodConfig(currentMethod);
+                                
+                                return methodConfig ? (
                                   <Form.Item
                                     {...field}
                                     name={[field.name, 'deliveryInfo']}
                                     label="发货信息"
+                                    rules={[
+                                      { validator: validateDeliveryInfo }
+                                    ]}
+                                    tooltip={methodConfig.example}
                                   >
                                     <Input.TextArea
-                                      placeholder={getDeliveryPlaceholder(currentMethod)}
+                                      placeholder={methodConfig.placeholder}
                                       rows={3}
                                     />
                                   </Form.Item>
@@ -478,7 +424,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                       >
                         + 添加规格
                       </Button>
-                      <Form.ErrorList errors={errors} />
                     </div>
                   )}
                 </Form.List>
@@ -500,4 +445,4 @@ const ProductForm: React.FC<ProductFormProps> = ({
   );
 };
 
-export default ProductForm;
+export default CreateProductForm; 
