@@ -9,82 +9,123 @@ import {
   StopOutlined,
   ExportOutlined,
   ExclamationCircleFilled,
+  LoadingOutlined,
+  ClockCircleOutlined,
   CheckCircleFilled,
-  InfoCircleFilled
+  CloseCircleFilled,
+  SyncOutlined,
 } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
 import CreateProductForm from './CreateProductForm';
 import EditProductForm from './EditProductForm';
 import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
 import type { TableProps } from 'antd';
+import type { ColumnsType, SortOrder } from 'antd/es/table/interface';
 import dayjs from 'dayjs';
+import ProductFilter from './components/ProductFilter';
+import type { Product } from '../../types/product';
 
 const { Search } = Input;
 const { confirm } = Modal;
 
 // 模拟数据
-const mockProducts = [
+const mockProducts: Product[] = [
   {
     id: '1',
-    name: '网易云音乐6个月会员',
-    category: '音乐会员',
-    price: 128,
-    stock: 200,
+    name: '绝命毒师全集 4K',
+    category: 'american_drama',
+    price: 129.99,
+    stock: 999,
     createdAt: '2024-03-02 16:30:00',
-    status: 'active',
+    status: 'manual',
     source: 'manual',
+    store: '默认店铺',
+    description: '高清4K蓝光版本',
+    hasSpecs: true,
+    specs: [
+      {
+        id: '1',
+        name: '百度网盘发货',
+        price: 129.99,
+        stock: 999,
+        deliveryMethod: 'baiduDisk',
+        deliveryInfo: 'https://pan.baidu.com/s/xxx'
+      },
+      {
+        id: '2',
+        name: '夸克网盘发货',
+        price: 129.99,
+        stock: 999,
+        deliveryMethod: 'quarkDisk',
+        deliveryInfo: 'https://pan.quark.cn/s/xxx'
+      }
+    ]
   },
   {
     id: '2',
-    name: '腾讯视频会员12个月',
-    category: '视频会员',
-    price: 258,
-    stock: 100,
+    name: '深入理解计算机系统',
+    category: 'ebook',
+    price: 49.99,
+    stock: 999,
     createdAt: '2024-03-02 14:00:00',
-    status: 'active',
-    source: 'manual',
+    status: 'crawler_running',
+    source: 'crawler',
+    store: '默认店铺',
+    description: 'CSAPP经典著作',
+    hasSpecs: false,
+    deliveryMethod: 'baiduDisk',
+    deliveryInfo: 'https://pan.baidu.com/s/xxx'
   },
   {
     id: '3',
-    name: 'Steam充值卡',
-    category: '游戏充值',
-    price: 88,
-    stock: 50,
-    createdAt: '2024-03-02 09:00:00',
-    status: 'active',
-    source: 'manual',
-  },
-  {
-    id: '4',
-    name: 'Bilibili大会员',
-    category: '视频会员',
-    price: 148,
-    stock: 0,
-    createdAt: '2024-03-02 08:00:00',
-    status: 'crawling',
+    name: 'Python高级教程',
+    category: 'study',
+    price: 79.99,
+    stock: 999,
+    createdAt: '2024-03-02 12:00:00',
+    status: 'crawler_failed',
     source: 'crawler',
-    productUrl: 'https://www.bilibili.com/vip/buy',
-  },
-  {
-    id: '5',
-    name: '爱奇艺黄金会员',
-    category: '视频会员',
-    price: 198,
-    stock: 500,
-    createdAt: '2024-03-01 16:30:00',
-    status: 'error',
-    source: 'crawler',
-    productUrl: 'https://vip.iqiyi.com',
-    errorMessage: '商品信息抓取失败',
+    store: '默认店铺',
+    description: 'Python进阶教程',
+    hasSpecs: false,
+    deliveryMethod: 'baiduDisk',
+    deliveryInfo: 'https://pan.baidu.com/s/xxx',
+    errorMessage: '网络错误或商品已下架'
   }
 ];
 
 // 商品状态配置
 const statusConfig = {
-  active: { text: '正常', color: 'success' },
-  inactive: { text: '已下架', color: 'default' },
-  crawling: { text: '抓取中', color: 'processing' },
-  error: { text: '抓取失败', color: 'error' },
+  manual: { 
+    text: '手动模式', 
+    color: 'success',
+    icon: null 
+  },
+  crawler_pending: { 
+    text: '待爬虫', 
+    color: 'default',
+    icon: <ClockCircleOutlined style={{ marginRight: 4 }} /> 
+  },
+  crawler_running: { 
+    text: '爬虫进行中', 
+    color: 'processing',
+    icon: <SyncOutlined spin style={{ marginRight: 4 }} /> 
+  },
+  crawler_success: { 
+    text: '爬虫成功', 
+    color: 'success',
+    icon: <CheckCircleFilled style={{ marginRight: 4 }} /> 
+  },
+  crawler_failed: { 
+    text: '爬虫失败', 
+    color: 'error',
+    icon: <CloseCircleFilled style={{ marginRight: 4 }} /> 
+  },
+  inactive: { 
+    text: '已下架', 
+    color: 'default',
+    icon: null 
+  },
 };
 
 const ProductLibrary: React.FC = () => {
@@ -93,8 +134,9 @@ const ProductLibrary: React.FC = () => {
   const [total, setTotal] = useState(mockProducts.length);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>(mockProducts);
   const productSettings = useSettingsStore(state => state.productSettings);
   const confirmModalRef = useRef<any>(null);
 
@@ -104,7 +146,7 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 处理编辑
-  const handleEdit = (record: any) => {
+  const handleEdit = (record: Product) => {
     setSelectedProduct(record);
     setIsEditModalVisible(true);
   };
@@ -117,13 +159,18 @@ const ProductLibrary: React.FC = () => {
         id: Date.now().toString(),
         ...values,
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'active',
+        status: values.method === 'manual' ? 'manual' : 'crawler_pending',
+        source: values.method,
       };
       setData([newProduct, ...data]);
       setTotal(total + 1);
       message.success('商品添加成功');
       setIsCreateModalVisible(false);
+
+      // 如果是爬虫模式，模拟爬虫状态变化
+      if (values.method === 'crawler') {
+        simulateCrawling(newProduct.id);
+      }
     } catch (error) {
       message.error('操作失败');
     } finally {
@@ -136,8 +183,8 @@ const ProductLibrary: React.FC = () => {
     try {
       setLoading(true);
       const newData = data.map(item =>
-        item.id === selectedProduct.id
-          ? { ...item, ...values, updatedAt: new Date().toISOString() }
+        item.id === selectedProduct?.id
+          ? { ...item, ...values }
           : item
       );
       setData(newData);
@@ -175,21 +222,9 @@ const ProductLibrary: React.FC = () => {
           setData(newData);
           setTotal(newData.length);
           setSelectedRowKeys([]);
-          message.success({
-            content: '删除成功',
-            duration: 2,
-            style: {
-              marginTop: '20vh',
-            },
-          });
+          message.success('删除成功');
         } catch (error) {
-          message.error({
-            content: '删除失败',
-            duration: 2,
-            style: {
-              marginTop: '20vh',
-            },
-          });
+          message.error('删除失败');
         } finally {
           setLoading(false);
           confirmModalRef.current = null;
@@ -197,66 +232,25 @@ const ProductLibrary: React.FC = () => {
       },
       onCancel: () => {
         confirmModalRef.current = null;
-      }
+      },
     });
   };
 
   // 处理批量删除
   const handleBatchDelete = () => {
-    if (confirmModalRef.current) return;
     showDeleteConfirm(selectedRowKeys.map(key => key.toString()));
-  };
-
-  // 显示下架确认框
-  const showOfflineConfirm = (ids: string[]) => {
-    if (confirmModalRef.current) return;
-    
-    confirmModalRef.current = confirm({
-      title: '确认下架',
-      icon: <ExclamationCircleFilled />,
-      content: `确定要下架选中的 ${ids.length} 个商品吗？`,
-      okText: '确定',
-      cancelText: '取消',
-      centered: true,
-      onOk: async () => {
-        try {
-          setLoading(true);
-          const newData = data.map(item => 
-            ids.includes(item.id)
-              ? { ...item, status: 'inactive' }
-              : item
-          );
-          setData(newData);
-          setSelectedRowKeys([]);
-          message.success({
-            content: '下架成功',
-            duration: 2,
-            style: {
-              marginTop: '20vh',
-            },
-          });
-        } catch (error) {
-          message.error({
-            content: '操作失败',
-            duration: 2,
-            style: {
-              marginTop: '20vh',
-            },
-          });
-        } finally {
-          setLoading(false);
-          confirmModalRef.current = null;
-        }
-      },
-      onCancel: () => {
-        confirmModalRef.current = null;
-      }
-    });
   };
 
   // 处理批量下架
   const handleBatchOffline = () => {
-    showOfflineConfirm(selectedRowKeys.map(key => key.toString()));
+    const newData = data.map(item => 
+      selectedRowKeys.includes(item.id) 
+        ? { ...item, status: 'inactive' }
+        : item
+    );
+    setData(newData);
+    setSelectedRowKeys([]);
+    message.success('批量下架成功');
   };
 
   // 批量操作菜单
@@ -282,19 +276,19 @@ const ProductLibrary: React.FC = () => {
   ];
 
   // 表格列配置
-  const columns = [
+  const columns: ColumnsType<Product> = [
     {
       title: '商品名称',
       dataIndex: 'name',
       key: 'name',
-      sorter: (a: any, b: any) => a.name.localeCompare(b.name),
-      sortDirections: ['ascend', 'descend'] as const,
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      sortDirections: ['ascend', 'descend'] as SortOrder[]
     },
     {
       title: '分类',
       dataIndex: 'category',
       key: 'category',
-      sorter: (a: any, b: any) => a.category.localeCompare(b.category),
+      sorter: (a: Product, b: Product) => a.category.localeCompare(b.category),
       sortDirections: ['ascend', 'descend'] as const,
     },
     {
@@ -302,14 +296,14 @@ const ProductLibrary: React.FC = () => {
       dataIndex: 'price',
       key: 'price',
       render: (price: number) => `¥${price}`,
-      sorter: (a: any, b: any) => a.price - b.price,
+      sorter: (a: Product, b: Product) => a.price - b.price,
       sortDirections: ['ascend', 'descend'] as const,
     },
     {
       title: '库存',
       dataIndex: 'stock',
       key: 'stock',
-      sorter: (a: any, b: any) => a.stock - b.stock,
+      sorter: (a: Product, b: Product) => a.stock - b.stock,
       sortDirections: ['ascend', 'descend'] as const,
     },
     {
@@ -317,7 +311,7 @@ const ProductLibrary: React.FC = () => {
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (createdAt: string) => dayjs(createdAt).format('YYYY/MM/DD HH:mm:ss'),
-      sorter: (a: any, b: any) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
+      sorter: (a: Product, b: Product) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
       sortDirections: ['ascend', 'descend'] as const,
       defaultSortOrder: 'descend',
     },
@@ -325,7 +319,7 @@ const ProductLibrary: React.FC = () => {
       title: '完整度',
       key: 'completeness',
       width: 180,
-      render: (_, record) => {
+      render: (_: any, record: Product) => {
         const percent = calculateCompleteness(record);
         const missingFields = getMissingFields(record);
         
@@ -377,30 +371,34 @@ const ProductLibrary: React.FC = () => {
           </Tooltip>
         );
       },
-      sorter: (a, b) => calculateCompleteness(a) - calculateCompleteness(b),
+      sorter: (a: Product, b: Product) => calculateCompleteness(a) - calculateCompleteness(b),
       sortDirections: ['descend', 'ascend'] as const,
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 140,
       render: (status: keyof typeof statusConfig) => (
         <Tag color={statusConfig[status].color}>
+          {statusConfig[status].icon}
           {statusConfig[status].text}
         </Tag>
       ),
       filters: [
-        { text: '正常', value: 'active' },
+        { text: '手动模式', value: 'manual' },
+        { text: '待爬虫', value: 'crawler_pending' },
+        { text: '爬虫进行中', value: 'crawler_running' },
+        { text: '爬虫成功', value: 'crawler_success' },
+        { text: '爬虫失败', value: 'crawler_failed' },
         { text: '已下架', value: 'inactive' },
-        { text: '抓取中', value: 'crawling' },
-        { text: '抓取失败', value: 'error' },
       ],
-      onFilter: (value: string, record: any) => record.status === value,
+      onFilter: (value: any, record: Product) => record.status === value,
     },
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: any) => (
+      render: (_: any, record: Product) => (
         <Space size="middle">
           <Button
             type="link"
@@ -423,9 +421,91 @@ const ProductLibrary: React.FC = () => {
   ];
 
   // 处理表格变化
-  const handleTableChange: TableProps<any>['onChange'] = (pagination, filters, sorter) => {
-    // 处理排序和筛选
+  const handleTableChange: TableProps<Product>['onChange'] = (pagination, filters, sorter) => {
     console.log('Table changed:', { pagination, filters, sorter });
+  };
+
+  // 处理筛选
+  const handleFilter = (filterValues: any) => {
+    let filtered = [...mockProducts];
+
+    // 分类筛选
+    if (filterValues.category) {
+      filtered = filtered.filter(product => product.category === filterValues.category);
+    }
+
+    // 完整度筛选
+    if (filterValues.completeness) {
+      const [min, max] = filterValues.completeness.split('-').map(Number);
+      filtered = filtered.filter(product => {
+        const completeness = calculateCompleteness(product);
+        if (max) {
+          return completeness >= min && completeness <= max;
+        }
+        return completeness === min;
+      });
+    }
+
+    // 规格类型筛选
+    if (filterValues.specType) {
+      filtered = filtered.filter(product => 
+        filterValues.specType === 'single' ? !product.hasSpecs : product.hasSpecs
+      );
+    }
+
+    // 发货方式筛选
+    if (filterValues.deliveryMethod) {
+      filtered = filtered.filter(product => {
+        if (product.hasSpecs && product.specs) {
+          return product.specs.some(spec => spec.deliveryMethod === filterValues.deliveryMethod);
+        }
+        return product.deliveryMethod === filterValues.deliveryMethod;
+      });
+    }
+
+    // 日期范围筛选
+    if (filterValues.startDate && filterValues.endDate) {
+      const startDate = dayjs(filterValues.startDate).startOf('day');
+      const endDate = dayjs(filterValues.endDate).endOf('day');
+      filtered = filtered.filter(product => {
+        const createdAt = dayjs(product.createdAt);
+        return createdAt.isAfter(startDate) && createdAt.isBefore(endDate);
+      });
+    }
+
+    setFilteredProducts(filtered);
+  };
+
+  // 模拟爬虫状态变化
+  const simulateCrawling = (productId: string) => {
+    // 先将状态改为进行中
+    setTimeout(() => {
+      setData(prevData => prevData.map(item => 
+        item.id === productId
+          ? { ...item, status: 'crawler_running' as const }
+          : item
+      ));
+
+      // 随机模拟成功或失败
+      setTimeout(() => {
+        const isSuccess = Math.random() > 0.3; // 70%的概率成功
+        setData(prevData => prevData.map(item => 
+          item.id === productId
+            ? { 
+                ...item, 
+                status: isSuccess ? 'crawler_success' : 'crawler_failed' as const,
+                errorMessage: !isSuccess ? '网络错误或商品已下架' : undefined
+              }
+            : item
+        ));
+
+        if (!isSuccess) {
+          message.error(`商品 ${productId} 爬取失败`);
+        } else {
+          message.success(`商品 ${productId} 爬取成功`);
+        }
+      }, Math.random() * 3000 + 2000); // 2-5秒后完成
+    }, 1000); // 1秒后开始
   };
 
   return (
@@ -462,47 +542,57 @@ const ProductLibrary: React.FC = () => {
           </Space>
         </div>
 
+        <ProductFilter onFilter={handleFilter} />
+
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={data}
+          dataSource={filteredProducts.length > 0 ? filteredProducts : data}
           loading={loading}
           rowSelection={{
             selectedRowKeys,
-            onChange: (keys) => {
-              setSelectedRowKeys(keys);
+            onChange: (newSelectedRowKeys) => {
+              setSelectedRowKeys(newSelectedRowKeys);
             },
-            preserveSelectedRowKeys: false
-          }}
-          pagination={{
-            total,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 条`,
           }}
           onChange={handleTableChange}
-          sortDirections={['ascend', 'descend']}
         />
       </Card>
 
-      {/* 新增商品表单 */}
-      {isCreateModalVisible && (
+      {/* 新增商品弹窗 */}
+      <Modal
+        title="新增商品"
+        open={isCreateModalVisible}
+        onCancel={() => setIsCreateModalVisible(false)}
+        footer={null}
+        width={800}
+        centered
+        destroyOnClose
+      >
         <CreateProductForm
           onSubmit={handleCreateSubmit}
           onCancel={() => setIsCreateModalVisible(false)}
-          loading={loading}
         />
-      )}
+      </Modal>
 
-      {/* 编辑商品表单 */}
-      {isEditModalVisible && selectedProduct && (
-        <EditProductForm
-          initialData={selectedProduct}
-          onSubmit={handleEditSubmit}
-          onCancel={() => setIsEditModalVisible(false)}
-          loading={loading}
-        />
-      )}
+      {/* 编辑商品弹窗 */}
+      <Modal
+        title="编辑商品"
+        open={isEditModalVisible}
+        onCancel={() => setIsEditModalVisible(false)}
+        footer={null}
+        width={800}
+        centered
+        destroyOnClose
+      >
+        {selectedProduct && (
+          <EditProductForm
+            initialValues={selectedProduct}
+            onSubmit={handleEditSubmit}
+            onCancel={() => setIsEditModalVisible(false)}
+          />
+        )}
+      </Modal>
     </div>
   );
 };

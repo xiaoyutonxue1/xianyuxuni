@@ -23,10 +23,9 @@ export interface ProductSpec {
   id: string;
   name: string;
   price: number;
-  originalPrice: number;
   stock: number;
   deliveryMethod: DeliveryMethod;
-  deliveryInfo?: string;
+  deliveryInfo: string;
 }
 
 // 商品基础信息
@@ -54,24 +53,32 @@ export interface ProductSaleInfo {
   deliveryInfo?: string;
 }
 
+// 商品状态类型
+export type ProductStatus = 
+  | 'manual'           // 手动模式
+  | 'crawler_pending'  // 待爬虫
+  | 'crawler_running'  // 爬虫进行中
+  | 'crawler_success'  // 爬虫成功
+  | 'crawler_failed'   // 爬虫失败
+  | 'inactive';        // 已下架
+
 // 完整的商品信息
 export interface Product extends ProductBase, ProductMedia {
   id: string;
+  name: string;
+  category: ProductCategory;
+  price: number;
+  stock: number;
+  createdAt: string;
+  status: ProductStatus;
+  source: 'manual' | 'crawler';
   hasSpecs: boolean;
   specs?: ProductSpec[];
-  saleInfo?: ProductSaleInfo;
-  
-  status: 'draft' | 'selling' | 'offline';
-  method: 'manual' | 'crawler';
-  createdAt: string;
-  updatedAt: string;
-  lastUpdateBy?: string;
-  
-  // 爬虫相关信息
-  crawlerStatus?: 'pending' | 'processing' | 'success' | 'failed';
-  source?: string;
-  sourceUrl?: string;
-  failReason?: string;
+  deliveryMethod?: DeliveryMethod;
+  deliveryInfo?: string;
+  productUrl?: string;
+  errorMessage?: string;
+  completeness?: number;
 }
 
 // 创建商品请求

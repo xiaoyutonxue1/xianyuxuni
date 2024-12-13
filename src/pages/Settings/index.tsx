@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, Tabs, Form, Input, Button, Select, InputNumber, Switch, Space, Tag, message, Modal, Table } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
-import type { StoreGroup, StoreAccount, DeliveryMethod } from '../../store/settingsStore';
+import type { StoreGroup, StoreAccount, DeliveryMethodSetting } from '../../store/settingsStore';
 import { v4 as uuidv4 } from 'uuid';
 
 const { TabPane } = Tabs;
@@ -48,12 +48,12 @@ const mockGroups: StoreGroup[] = [
   },
 ];
 
-const defaultDeliveryMethods: DeliveryMethod[] = [
-  { id: 'baidu_link', name: '百度网盘链接', value: 'baidu_link', isEnabled: true },
-  { id: 'baidu_group_link', name: '百度网盘群链接', value: 'baidu_group_link', isEnabled: true },
-  { id: 'baidu_group_code', name: '百度网盘群口令', value: 'baidu_group_code', isEnabled: true },
-  { id: 'quark_link', name: '夸克网盘链接', value: 'quark_link', isEnabled: true },
-  { id: 'quark_group_link', name: '夸克网盘群链接', value: 'quark_group_link', isEnabled: true },
+const defaultDeliveryMethods: DeliveryMethodSetting[] = [
+  { id: 'baiduDisk', name: '百度网盘链接', value: 'baiduDisk', isEnabled: true },
+  { id: 'baiduDiskGroup', name: '百度网盘群链接', value: 'baiduDiskGroup', isEnabled: true },
+  { id: 'baiduDiskGroupCode', name: '百度网盘群口令', value: 'baiduDiskGroupCode', isEnabled: true },
+  { id: 'quarkDisk', name: '夸克网盘链接', value: 'quarkDisk', isEnabled: true },
+  { id: 'quarkDiskGroup', name: '夸克网盘群链接', value: 'quarkDiskGroup', isEnabled: true }
 ];
 
 const Settings: React.FC = () => {

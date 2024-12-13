@@ -11,41 +11,41 @@ export const categoryOptions = [
   { label: '电影', value: 'movie' },
 ];
 
-// 发货方式配置
+// 发货方式选项
 export const deliveryMethods = [
   { 
     label: '百度网盘链接', 
     value: 'baiduDisk',
-    placeholder: '请输入百度网盘链接，格式：链接+提取码，例如：https://pan.baidu.com/s/xxx 提取码:1234',
-    pattern: '^https://pan\\.baidu\\.com/s/[\\w-]+ 提取码:[\\w]{4}$',
-    example: 'https://pan.baidu.com/s/1xxxxxxxx 提取码:abcd'
+    pattern: '^https?://pan\\.baidu\\.com/s/[a-zA-Z0-9_-]+$',
+    example: '示例: https://pan.baidu.com/s/abc123',
+    placeholder: '请输入百度网盘分享链接'
   },
   { 
     label: '百度网盘群链接', 
     value: 'baiduDiskGroup',
-    placeholder: '请输入百度网盘群链接，例如：https://pan.baidu.com/mbox/homepage?short=xxxxxx',
-    pattern: '^https://pan\\.baidu\\.com/mbox/homepage\\?short=[\\w-]+$',
-    example: 'https://pan.baidu.com/mbox/homepage?short=xxxxxx'
+    pattern: '^https?://pan\\.baidu\\.com/s/[a-zA-Z0-9_-]+$',
+    example: '示例: https://pan.baidu.com/s/abc123',
+    placeholder: '请输入百度网盘群分享链接'
   },
   { 
     label: '百度网盘群口令', 
     value: 'baiduDiskGroupCode',
-    placeholder: '请输入百度网盘群口令，例如：#百度网盘共享群#口令：xxxxxx',
-    pattern: '^#百度网盘共享群#口令：[\\w-]+$',
-    example: '#百度网盘共享群#口令：123456'
+    pattern: '^[a-zA-Z0-9]{4}$',
+    example: '示例: abc1',
+    placeholder: '请输入4位提取码'
   },
   { 
     label: '夸克网盘链接', 
     value: 'quarkDisk',
-    placeholder: '请输入夸克网盘链接，格式：链接+提取码，例如：https://pan.quark.cn/s/xxxxxx 提取码:1234',
-    pattern: '^https://pan\\.quark\\.cn/s/[\\w-]+ 提取码:[\\w]{4}$',
-    example: 'https://pan.quark.cn/s/xxxxxxxx 提取码:abcd'
+    pattern: '^https?://pan\\.quark\\.cn/s/[a-zA-Z0-9]+$',
+    example: '示例: https://pan.quark.cn/s/abc123',
+    placeholder: '请输入夸克网盘分享链接'
   },
   { 
     label: '夸克网盘群链接', 
     value: 'quarkDiskGroup',
-    placeholder: '请输入夸克网盘群链接，例如：https://pan.quark.cn/group/xxxxxx',
-    pattern: '^https://pan\\.quark\\.cn/group/[\\w-]+$',
-    example: 'https://pan.quark.cn/group/xxxxxx'
-  },
+    pattern: '^https?://pan\\.quark\\.cn/s/[a-zA-Z0-9]+$',
+    example: '示例: https://pan.quark.cn/s/abc123',
+    placeholder: '请输入夸克网盘群分享链接'
+  }
 ]; 

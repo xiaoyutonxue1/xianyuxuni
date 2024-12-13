@@ -20,19 +20,14 @@ export interface StoreGroup {
   storeIds: string[];
 }
 
-export interface DeliveryMethod {
+export interface DeliveryMethodSetting {
   id: string;
   name: string;
   value: string;
   isEnabled: boolean;
-  fields: {
-    id: string;
-    name: string;
-    key: string;
-    type: 'text' | 'password' | 'textarea';
-    placeholder?: string;
-    required?: boolean;
-  }[];
+  pattern?: string;
+  example?: string;
+  placeholder?: string;
 }
 
 interface ProductSettings {
@@ -48,7 +43,7 @@ interface ProductSettings {
     enableSmartContent: boolean;
   };
   categories: string[];
-  deliveryMethods: DeliveryMethod[];
+  deliveryMethods: DeliveryMethodSetting[];
   defaultSpecName: string;
 }
 
@@ -67,102 +62,51 @@ interface SettingsState {
   removeStoreGroup: (id: string) => void;
 }
 
-const defaultDeliveryMethods: DeliveryMethod[] = [
+const defaultDeliveryMethods: DeliveryMethodSetting[] = [
   {
-    id: 'baidu_link',
+    id: 'baiduDisk',
     name: '百度网盘链接',
-    value: 'baidu_link',
+    value: 'baiduDisk',
     isEnabled: true,
-    fields: [
-      {
-        id: 'link',
-        name: '网盘链接',
-        key: 'link',
-        type: 'text',
-        placeholder: '请输入百度网盘链接',
-        required: true,
-      },
-      {
-        id: 'password',
-        name: '提取码',
-        key: 'password',
-        type: 'text',
-        placeholder: '请输入提取码',
-        required: true,
-      }
-    ]
+    pattern: '^https?://pan\\.baidu\\.com/s/[a-zA-Z0-9_-]+$',
+    example: '示例: https://pan.baidu.com/s/abc123',
+    placeholder: '请输入百度网盘分享链接'
   },
   {
-    id: 'baidu_group_link',
+    id: 'baiduDiskGroup',
     name: '百度网盘群链接',
-    value: 'baidu_group_link',
+    value: 'baiduDiskGroup',
     isEnabled: true,
-    fields: [
-      {
-        id: 'link',
-        name: '群链接',
-        key: 'link',
-        type: 'text',
-        placeholder: '请输入百度网盘群链接',
-        required: true,
-      }
-    ]
+    pattern: '^https?://pan\\.baidu\\.com/s/[a-zA-Z0-9_-]+$',
+    example: '示例: https://pan.baidu.com/s/abc123',
+    placeholder: '请输入百度网盘群分享链接'
   },
   {
-    id: 'baidu_group_code',
+    id: 'baiduDiskGroupCode',
     name: '百度网盘群口令',
-    value: 'baidu_group_code',
+    value: 'baiduDiskGroupCode',
     isEnabled: true,
-    fields: [
-      {
-        id: 'code',
-        name: '群口令',
-        key: 'code',
-        type: 'text',
-        placeholder: '请输入百度网盘群口令',
-        required: true,
-      }
-    ]
+    pattern: '^[a-zA-Z0-9]{4}$',
+    example: '示例: abc1',
+    placeholder: '请输入4位提取码'
   },
   {
-    id: 'quark_link',
+    id: 'quarkDisk',
     name: '夸克网盘链接',
-    value: 'quark_link',
+    value: 'quarkDisk',
     isEnabled: true,
-    fields: [
-      {
-        id: 'link',
-        name: '网盘链接',
-        key: 'link',
-        type: 'text',
-        placeholder: '请输入夸克网盘链接',
-        required: true,
-      },
-      {
-        id: 'password',
-        name: '提取码',
-        key: 'password',
-        type: 'text',
-        placeholder: '请输入提取码',
-        required: true,
-      }
-    ]
+    pattern: '^https?://pan\\.quark\\.cn/s/[a-zA-Z0-9]+$',
+    example: '示例: https://pan.quark.cn/s/abc123',
+    placeholder: '请输入夸克网盘分享链接'
   },
   {
-    id: 'quark_group_link',
+    id: 'quarkDiskGroup',
     name: '夸克网盘群链接',
-    value: 'quark_group_link',
+    value: 'quarkDiskGroup',
     isEnabled: true,
-    fields: [
-      {
-        id: 'link',
-        name: '群链接',
-        key: 'link',
-        type: 'text',
-        placeholder: '请输入夸克网盘群链接',
-        required: true,
-      }
-    ]
+    pattern: '^https?://pan\\.quark\\.cn/s/[a-zA-Z0-9]+$',
+    example: '示例: https://pan.quark.cn/s/abc123',
+    placeholder: '请输入夸克网盘群分享链接'
   }
 ];
 

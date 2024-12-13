@@ -49,6 +49,38 @@
    - 通过标准选项选择发货方式
    - 根据选择的方式显示对应的信息输入框
 
+### 商品状态说明
+
+```sql
+-- 商品状态枚举值
+'manual',           -- 手动模式
+'crawler_pending',  -- 待爬虫
+'crawler_running',  -- 爬虫进行中
+'crawler_success',  -- 爬虫成功
+'crawler_failed',   -- 爬虫失败
+'inactive'          -- 已下架
+
+-- 商品来源枚举值
+'manual',           -- 手动添加
+'crawler'           -- 爬虫抓取
+```
+
+### 爬虫模式说明
+
+爬虫模式下的商品状态流转：
+1. 创建商品时，状态为 `crawler_pending`（待爬虫）
+2. 开始爬取时，状态变更为 `crawler_running`（爬虫进行中）
+3. 爬取完成后：
+   - 成功：状态变更为 `crawler_success`（爬虫成功）
+   - 失败：状态变更为 `crawler_failed`（爬虫失败）
+
+爬虫模式下的必要字段：
+- name: 商品名称
+- productUrl: 商品链接
+- source: 'crawler'
+- status: 当前爬虫状态
+- errorMessage: 失败时的错误信息（可选）
+
 ## 实体关系图
 
 ```mermaid
@@ -206,5 +238,36 @@ INSERT INTO product_spec (product_id, name, price, stock, delivery_method, deliv
 UPDATE product SET default_spec_id = 1 WHERE id = 1;   -- 绝命毒师默认百度网盘发货
 UPDATE product SET default_spec_id = 4 WHERE id = 2;   -- 计算机系统书默认发货方式
 UPDATE product SET default_spec_id = 5 WHERE id = 3;   -- Python课程默认百度网盘直接发货
+```
+
+### 发货方式枚举值
+
+```sql
+-- 发货方式枚举值
+'baiduDisk',        -- 百度网盘链接
+'baiduDiskGroup',   -- 百度网盘群链接
+'baiduDiskGroupCode', -- 百度网盘群口令
+'quarkDisk',        -- 夸克网盘链接
+'quarkDiskGroup'    -- 夸克网盘群链接
+```
+
+### 示例数据
+
+```sql
+-- 商品规格表示例数据
+INSERT INTO product_specs (product_id, name, price, stock, delivery_method, delivery_info) VALUES
+(1, '百度网盘发货', 129.99, 999, 'baiduDisk', 'https://pan.baidu.com/s/xxx'),
+(1, '百度网盘群组', 129.99, 999, 'baiduDiskGroup', '加入群组获取：https://pan.baidu.com/s/xxx'),
+(1, '夸克网盘发货', 129.99, 999, 'quarkDisk', 'https://pan.quark.cn/s/xxx');
+
+-- 单规格商品示例
+INSERT INTO product_specs (product_id, name, price, stock, delivery_method, delivery_info) VALUES
+(2, '默认发货方式', 49.99, 999, 'baiduDisk', 'https://pan.baidu.com/s/xxx');
+
+-- 多规格商品示例
+INSERT INTO product_specs (product_id, name, price, stock, delivery_method, delivery_info) VALUES
+(3, '百度网盘直接发货', 299.99, 999, 'baiduDisk', 'https://pan.baidu.com/s/xxx'),
+(3, '百度网盘群发货', 299.99, 999, 'baiduDiskGroupCode', '加群获取提取码：PYTHON888'),
+(3, '夸克网盘群发货', 299.99, 999, 'quarkDiskGroup', 'https://pan.quark.cn/s/xxx');
 ```
 ``` 
