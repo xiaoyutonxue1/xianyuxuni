@@ -1,14 +1,15 @@
 import { createBrowserRouter } from 'react-router-dom';
-import Layout from '../components/Layout';
+import MainLayout from '../components/MainLayout';
 import Dashboard from '../pages/Dashboard';
-import Products from '../pages/Products';
-import Templates from '../pages/Templates';
+import ProductLibrary from '../pages/Products/ProductLibrary';
+import ProductSelection from '../pages/Products/ProductSelection';
+import ProductAllocation from '../pages/Products/ProductAllocation';
 import Settings from '../pages/Settings';
 
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <Layout />,
+    element: <MainLayout />,
     children: [
       {
         path: '/',
@@ -19,12 +20,16 @@ const router = createBrowserRouter([
         element: <Dashboard />,
       },
       {
-        path: 'products',
-        element: <Products />,
+        path: 'new-product',
+        element: <ProductLibrary />,
       },
       {
-        path: 'templates',
-        element: <Templates />,
+        path: 'allocation',
+        element: <ProductSelection />,
+      },
+      {
+        path: 'management',
+        element: <ProductAllocation />,
       },
       {
         path: 'settings',

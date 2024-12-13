@@ -400,7 +400,7 @@ const Settings: React.FC = () => {
                   <Select
                     options={[
                       { label: '向上取整', value: 'up' },
-                      { label: '���下取整', value: 'down' },
+                      { label: '向下取整', value: 'down' },
                       { label: '四舍五入', value: 'nearest' },
                     ]}
                   />
