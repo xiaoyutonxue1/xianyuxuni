@@ -7,6 +7,47 @@ import { v4 as uuidv4 } from 'uuid';
 
 const { TabPane } = Tabs;
 
+// 模拟数据
+const mockStores: StoreAccount[] = [
+  {
+    id: '1',
+    name: '水城有趣的海鲜',
+    platform: '闲鱼',
+    features: {
+      priceAdjustment: 0.1,
+      customFields: {
+        slogan: '新鲜美味，品质保证',
+        servicePromise: '24小时发货，售后无忧',
+      },
+    },
+  },
+  {
+    id: '2',
+    name: '巨全资料库',
+    platform: '闲鱼',
+    features: {
+      priceAdjustment: 0,
+      customFields: {
+        slogan: '资料齐全，价格实惠',
+        servicePromise: '资料保真，售后保障',
+      },
+    },
+  },
+];
+
+const mockGroups: StoreGroup[] = [
+  {
+    id: '1',
+    name: '主力店铺',
+    storeIds: ['1'],
+  },
+  {
+    id: '2',
+    name: '测试店铺',
+    storeIds: ['2'],
+  },
+];
+
 const defaultDeliveryMethods: DeliveryMethod[] = [
   { id: 'baidu_link', name: '百度网盘链接', value: 'baidu_link', isEnabled: true },
   { id: 'baidu_group_link', name: '百度网盘群链接', value: 'baidu_group_link', isEnabled: true },
@@ -17,8 +58,8 @@ const defaultDeliveryMethods: DeliveryMethod[] = [
 
 const Settings: React.FC = () => {
   const { 
-    storeAccounts, 
-    storeGroups,
+    storeAccounts = mockStores, 
+    storeGroups = mockGroups,
     productSettings, 
     addStoreAccount, 
     removeStoreAccount,
@@ -43,7 +84,11 @@ const Settings: React.FC = () => {
   const handleEditStore = (store?: StoreAccount) => {
     setCurrentStore(store);
     if (store) {
-      storeForm.setFieldsValue(store);
+      storeForm.setFieldsValue({
+        ...store,
+        ...store.features.customFields,
+        priceAdjustment: store.features.priceAdjustment,
+      });
     } else {
       storeForm.resetFields();
     }
@@ -66,21 +111,25 @@ const Settings: React.FC = () => {
   const handleSaveStore = async () => {
     try {
       const values = await storeForm.validateFields();
+      const { slogan, servicePromise, ...storeData } = values;
+      
+      const storeInfo = {
+        id: currentStore?.id || uuidv4(),
+        ...storeData,
+        features: {
+          priceAdjustment: values.priceAdjustment || 0,
+          customFields: {
+            slogan,
+            servicePromise,
+          },
+        },
+      };
+
       if (currentStore) {
-        updateStoreAccount(currentStore.id, values);
+        updateStoreAccount(currentStore.id, storeInfo);
         message.success('编辑成功');
       } else {
-        addStoreAccount({
-          id: uuidv4(),
-          ...values,
-          features: {
-            priceAdjustment: values.priceAdjustment || 0,
-            customFields: {
-              slogan: values.slogan,
-              servicePromise: values.servicePromise,
-            },
-          },
-        });
+        addStoreAccount(storeInfo);
         message.success('添加成功');
       }
       setIsStoreModalVisible(false);
@@ -114,12 +163,12 @@ const Settings: React.FC = () => {
       key: 'action',
       render: (_: any, record: StoreAccount) => (
         <Space size="middle">
-          <a onClick={() => handleEditStore(record)}>
+          <Button type="link" onClick={() => handleEditStore(record)}>
             <EditOutlined /> 编辑
-          </a>
-          <a onClick={() => handleDeleteStore(record)}>
+          </Button>
+          <Button type="link" danger onClick={() => handleDeleteStore(record)}>
             <DeleteOutlined /> 删除
-          </a>
+          </Button>
         </Space>
       ),
     },
@@ -142,7 +191,6 @@ const Settings: React.FC = () => {
 
   // 处理删除分类
   const handleRemoveCategory = (category: string, e?: React.MouseEvent<HTMLElement, MouseEvent>) => {
-    // 阻止 Tag 的关闭事件
     e?.preventDefault();
     e?.stopPropagation();
     
@@ -234,12 +282,12 @@ const Settings: React.FC = () => {
       key: 'action',
       render: (_: any, record: StoreGroup) => (
         <Space size="middle">
-          <a onClick={() => handleEditGroup(record)}>
+          <Button type="link" onClick={() => handleEditGroup(record)}>
             <EditOutlined /> 编辑
-          </a>
-          <a onClick={() => handleDeleteGroup(record)}>
+          </Button>
+          <Button type="link" danger onClick={() => handleDeleteGroup(record)}>
             <DeleteOutlined /> 删除
-          </a>
+          </Button>
         </Space>
       ),
     },
