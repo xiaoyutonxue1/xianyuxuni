@@ -1,3 +1,23 @@
+// 商品分类类型
+export type ProductCategory = 
+  | 'study'           // 学习资料
+  | 'japanese_drama'  // 日剧
+  | 'american_drama'  // 美剧
+  | 'manga'          // 漫画
+  | 'korean_drama'   // 韩剧
+  | 'chinese_drama'  // 国内电视剧
+  | 'anime'          // 动漫
+  | 'ebook'          // 电子书
+  | 'movie';         // 电影
+
+// 发货方式类型
+export type DeliveryMethod = 
+  | 'baiduDisk'          // 百度网盘链接
+  | 'baiduDiskGroup'     // 百度网盘群链接
+  | 'baiduDiskGroupCode' // 百度网盘群口令
+  | 'quarkDisk'          // 夸克网盘链接
+  | 'quarkDiskGroup';    // 夸克网盘群链接
+
 // 商品规格
 export interface ProductSpec {
   id: string;
@@ -5,13 +25,14 @@ export interface ProductSpec {
   price: number;
   originalPrice: number;
   stock: number;
-  deliveryMethod: 'auto' | 'manual';
+  deliveryMethod: DeliveryMethod;
+  deliveryInfo?: string;
 }
 
 // 商品基础信息
 export interface ProductBase {
   name: string;
-  category: string;
+  category: ProductCategory;
   store: string;
   description: string;
   keywords?: string[];
@@ -29,7 +50,8 @@ export interface ProductSaleInfo {
   price: number;
   originalPrice: number;
   stock: number;
-  deliveryMethod: 'auto' | 'manual';
+  deliveryMethod: DeliveryMethod;
+  deliveryInfo?: string;
 }
 
 // 完整的商品信息
