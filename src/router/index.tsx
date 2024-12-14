@@ -2,7 +2,6 @@ import { createBrowserRouter } from 'react-router-dom';
 import MainLayout from '../components/MainLayout';
 import Dashboard from '../pages/Dashboard';
 import ProductLibrary from '../pages/Products/ProductLibrary';
-import ProductSelection from '../pages/Products/ProductSelection';
 import ProductAllocation from '../pages/Products/ProductAllocation';
 import ProductManagement from '../pages/Management';
 import Settings from '../pages/Settings';

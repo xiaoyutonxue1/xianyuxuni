@@ -1,6 +1,26 @@
 import { create } from 'zustand';
 import type { ProductSelection } from '../types/product';
 
+// 从localStorage获取初始数据
+const getInitialSelections = (): ProductSelection[] => {
+  try {
+    const savedSelections = localStorage.getItem('selections');
+    return savedSelections ? JSON.parse(savedSelections) : [];
+  } catch (error) {
+    console.error('Failed to load selections from localStorage:', error);
+    return [];
+  }
+};
+
+// 保存数据到localStorage
+const saveSelections = (selections: ProductSelection[]) => {
+  try {
+    localStorage.setItem('selections', JSON.stringify(selections));
+  } catch (error) {
+    console.error('Failed to save selections to localStorage:', error);
+  }
+};
+
 interface SelectionStore {
   selections: ProductSelection[];
   addSelection: (selection: ProductSelection) => void;
@@ -9,26 +29,32 @@ interface SelectionStore {
 }
 
 const useSelectionStore = create<SelectionStore>((set) => ({
-  selections: [],
+  selections: getInitialSelections(),
   
   addSelection: (selection) => 
-    set((state) => ({
-      selections: [...state.selections, selection]
-    })),
+    set((state) => {
+      const newSelections = [...state.selections, selection];
+      saveSelections(newSelections);
+      return { selections: newSelections };
+    }),
   
   updateSelectionStatus: (id, status, distributedAt) =>
-    set((state) => ({
-      selections: state.selections.map(selection =>
+    set((state) => {
+      const newSelections = state.selections.map(selection =>
         selection.id === id
           ? { ...selection, status, distributedAt }
           : selection
-      )
-    })),
+      );
+      saveSelections(newSelections);
+      return { selections: newSelections };
+    }),
   
   deleteSelections: (ids) =>
-    set((state) => ({
-      selections: state.selections.filter(selection => !ids.includes(selection.id))
-    }))
+    set((state) => {
+      const newSelections = state.selections.filter(selection => !ids.includes(selection.id));
+      saveSelections(newSelections);
+      return { selections: newSelections };
+    })
 }));
 
 export default useSelectionStore; 

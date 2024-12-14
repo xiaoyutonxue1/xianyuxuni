@@ -126,33 +126,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
   const handleSubmit = async (values: any) => {
     try {
       await onSubmit(values);
-      
-      // 创建选品记录
-      const selection = {
-        id: Date.now().toString(), // 临时ID
-        name: values.name,
-        category: values.category,
-        price: values.price,
-        stock: values.stock,
-        status: 'pending' as const,
-        createdAt: new Date().toISOString(),
-        description: values.description,
-        source: addMode,
-        hasSpecs: hasSpecs,
-        saleInfo: hasSpecs ? undefined : {
-          price: values.price,
-          stock: values.stock,
-          deliveryMethod: values.deliveryMethod,
-          deliveryInfo: values.deliveryInfo,
-          originalPrice: values.price
-        },
-        specs: hasSpecs ? values.specs : undefined
-      };
-
-      // 使用 selectionStore 添加选品
-      addSelection(selection);
-
-      message.success('创建成功，选品已添加到选品管理');
+      message.success('创建成功');
       form.resetFields();
       updateCompleteness();
     } catch (error) {

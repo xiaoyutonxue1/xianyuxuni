@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress } from 'antd';
+import React, { useState, useRef, useEffect } from 'react';
+import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, Typography } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import { 
   PlusOutlined, 
   DeleteOutlined, 
@@ -16,17 +17,20 @@ import {
   SyncOutlined,
 } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
+import useSelectionStore from '../../store/selectionStore';
 import CreateProductForm from './CreateProductForm';
 import EditProductForm from './EditProductForm';
 import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
 import type { TableProps } from 'antd';
 import type { ColumnsType, SortOrder } from 'antd/es/table/interface';
+import type { CreateProductRequest } from '../../types/product';
 import dayjs from 'dayjs';
 import ProductFilter from './components/ProductFilter';
 import type { Product } from '../../types/product';
 
 const { Search } = Input;
 const { confirm } = Modal;
+const { Text } = Typography;
 
 // 商品状态配置
 const statusConfig = {
@@ -72,13 +76,19 @@ const getInitialProducts = () => {
 };
 
 const ProductLibrary: React.FC = () => {
+  const navigate = useNavigate();
+  const { addSelection } = useSelectionStore();
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState(getInitialProducts());
-  const [total, setTotal] = useState(data.length);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [data, setData] = useState<any[]>(getInitialProducts());
+  const [searchText, setSearchText] = useState('');
+  const [filterValues, setFilterValues] = useState<any>({});
+  const [sortField, setSortField] = useState<string>('createdAt');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('descend');
+  const [total, setTotal] = useState(data.length);
   const [filteredProducts, setFilteredProducts] = useState(data);
   const productSettings = useSettingsStore(state => state.productSettings);
   const confirmModalRef = useRef<any>(null);
@@ -104,29 +114,52 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 处理新增表单提交
-  const handleCreateSubmit = async (values: any) => {
+  const handleCreateSubmit = async (values: CreateProductRequest) => {
     try {
-      setLoading(true);
-      const newProduct = {
+      // 创建新的选品记录
+      const newSelection = {
         id: Date.now().toString(),
-        ...values,
-        createdAt: new Date().toISOString(),
+        name: values.name,
+        category: values.category,
+        price: values.price,
+        stock: values.stock,
         status: values.method === 'manual' ? 'manual' : 'crawler_pending',
+        createdAt: new Date().toISOString(),
+        description: values.description,
         source: values.method,
+        hasSpecs: values.hasSpecs,
+        saleInfo: values.hasSpecs ? undefined : {
+          price: values.price,
+          stock: values.stock,
+          deliveryMethod: values.deliveryMethod,
+          deliveryInfo: values.deliveryInfo,
+          originalPrice: values.price
+        },
+        specs: values.hasSpecs ? values.specs : undefined,
+        lastUpdated: new Date().toISOString()
       };
-      const newData = [newProduct, ...data];
+
+      // 添加到当前页面的数据中
+      const newData = [newSelection, ...data];
       updateData(newData);
-      message.success('商品添加成功');
+
+      // 如果是手动模式,同时添加到选品库(使用不同的状态)
+      if (values.method === 'manual') {
+        addSelection({
+          ...newSelection,
+          status: 'pending' // 在选品库中使用待分配状态
+        });
+      }
+
+      message.success('选品创建成功');
       setIsCreateModalVisible(false);
 
-      // 如果是爬虫模式，模拟爬虫状态变化
+      // 如果是爬虫模式,模拟爬虫状态变化
       if (values.method === 'crawler') {
-        simulateCrawling(newProduct.id);
+        simulateCrawling(newSelection.id);
       }
     } catch (error) {
-      message.error('操作失败');
-    } finally {
-      setLoading(false);
+      message.error('创建失败');
     }
   };
 
@@ -239,42 +272,47 @@ const ProductLibrary: React.FC = () => {
       title: '商品名称',
       dataIndex: 'name',
       key: 'name',
-      sorter: (a, b) => a.name.localeCompare(b.name),
-      sortDirections: ['ascend', 'descend'] as SortOrder[]
+      width: 300,
+      render: (text, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{text}</Text>
+          {record.category && <Tag>{record.category}</Tag>}
+          {record.description && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {record.description}
+            </Text>
+          )}
+        </Space>
+      ),
     },
     {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
-      sorter: (a: Product, b: Product) => a.category.localeCompare(b.category),
-      sortDirections: ['ascend', 'descend'] as const,
+      title: '价格/库存',
+      key: 'priceAndStock',
+      width: 150,
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>¥{record.price}</Text>
+          <Text type="secondary">库存: {record.stock}</Text>
+        </Space>
+      ),
     },
     {
-      title: '价格',
-      dataIndex: 'price',
-      key: 'price',
-      render: (price: number) => `¥${price}`,
-      sorter: (a: Product, b: Product) => a.price - b.price,
-      sortDirections: ['ascend', 'descend'] as const,
-    },
-    {
-      title: '库存',
-      dataIndex: 'stock',
-      key: 'stock',
-      sorter: (a: Product, b: Product) => a.stock - b.stock,
-      sortDirections: ['ascend', 'descend'] as const,
-    },
-    {
-      title: '商品状态',
+      title: '状态',
       dataIndex: 'status',
       key: 'status',
-      width: 140,
-      render: (status: keyof typeof statusConfig) => (
-        <Tag color={statusConfig[status].color}>
-          {statusConfig[status].icon}
-          {statusConfig[status].text}
-        </Tag>
-      ),
+      width: 150,
+      render: (status: keyof typeof statusConfig) => {
+        const config = statusConfig[status] || {
+          text: status,
+          color: 'default',
+          icon: null
+        };
+        return (
+          <Tag color={config.color}>
+            {config.icon}{config.text}
+          </Tag>
+        );
+      },
       filters: [
         { text: '手动模式', value: 'manual' },
         { text: '待爬虫', value: 'crawler_pending' },
@@ -283,145 +321,76 @@ const ProductLibrary: React.FC = () => {
         { text: '爬虫失败', value: 'crawler_failed' },
         { text: '已下架', value: 'inactive' },
       ],
-      onFilter: (value: any, record: Product) => record.status === value,
+      onFilter: (value, record) => record.status === value,
     },
     {
       title: '完整度',
       key: 'completeness',
-      width: 180,
-      render: (_: any, record: Product) => {
-        // 爬虫模式
-        if (record.source === 'crawler') {
-          const statusMap = {
-            crawler_pending: { percent: 0, status: 'normal' as const },
-            crawler_running: { percent: 50, status: 'active' as const },
-            crawler_success: { percent: 100, status: 'success' as const },
-            crawler_failed: { percent: 50, status: 'exception' as const },
-            inactive: { percent: 100, status: 'normal' as const },
-          };
-
-          const { percent, status } = statusMap[record.status as keyof typeof statusMap] || 
-            { percent: 0, status: 'normal' as const };
-
-          return (
-            <Tooltip
-              title={record.errorMessage}
-              color={record.status === 'crawler_failed' ? '#ff4d4f' : '#fff'}
-            >
-              <Progress
-                percent={percent}
-                size="small"
-                status={status}
-                format={(percent) => (
-                  <span style={{ fontSize: '12px' }}>
-                    {percent}%
-                  </span>
-                )}
-                style={{ margin: 0 }}
-              />
-            </Tooltip>
-          );
-        }
-
-        // 手动模式
-        const percent = calculateCompleteness(record);
+      width: 200,
+      render: (_, record) => {
+        const completeness = calculateCompleteness(record);
         const missingFields = getMissingFields(record);
+        const status = getCompletenessStatus(completeness);
+        
+        // 根据完整度计算渐变色
+        const getGradientColor = (percent: number) => {
+          // 从红色渐变到绿色
+          const red = Math.round(255 * (100 - percent) / 100);
+          const green = Math.round(255 * percent / 100);
+          return `rgb(${red}, ${green}, 0)`;
+        };
         
         return (
-          <Tooltip
+          <Tooltip 
             title={
-              missingFields.length > 0 ? (
-                <div className="p-2">
-                  <div className="text-base text-red-500 mb-2">
-                    未填写项目
-                  </div>
-                  <div className="bg-red-50 rounded p-2">
-                    {missingFields.map((field, index) => (
-                      <div key={index} className="text-red-400 py-0.5">
-                        • {field}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null
+              missingFields.length > 0 
+                ? `缺失字段: ${missingFields.join(', ')}` 
+                : '信息完整'
             }
-            overlayStyle={{ 
-              maxWidth: '400px',
-              borderRadius: '8px',
-            }}
-            overlayInnerStyle={{
-              borderRadius: '8px',
-            }}
-            color="#fff"
-            placement="right"
           >
-            <div className="cursor-pointer">
-              <Progress
-                percent={percent}
-                size="small"
-                status={getCompletenessStatus(percent)}
-                format={(percent) => (
-                  <span style={{ fontSize: '12px' }}>
-                    {percent}%
-                  </span>
-                )}
-                strokeColor={{
-                  '0%': '#108ee9',
-                  '100%': '#87d068',
-                }}
-                style={{ margin: 0 }}
-              />
-            </div>
+            <Progress 
+              percent={completeness} 
+              size="small"
+              strokeColor={{
+                '0%': '#108ee9',
+                '100%': '#87d068',
+              }}
+              trailColor="#f5f5f5"
+              format={(percent) => `${percent}%`}
+            />
           </Tooltip>
         );
       },
-      sorter: (a: Product, b: Product) => {
-        // 爬虫模式
-        if (a.source === 'crawler' && b.source === 'crawler') {
-          const statusScore = {
-            crawler_pending: 0,
-            crawler_running: 50,
-            crawler_success: 100,
-            crawler_failed: 25,
-            inactive: 100,
-          };
-          return (statusScore[a.status as keyof typeof statusScore] || 0) - 
-                 (statusScore[b.status as keyof typeof statusScore] || 0);
-        }
-        // 手动模式
-        return calculateCompleteness(a) - calculateCompleteness(b);
+      filters: [
+        { text: '100%', value: '100-100' },
+        { text: '75-99%', value: '75-99' },
+        { text: '50-74%', value: '50-74' },
+        { text: '0-49%', value: '0-49' }
+      ],
+      onFilter: (value, record) => {
+        const [min, max] = (value as string).split('-').map(Number);
+        const completeness = calculateCompleteness(record);
+        return completeness >= min && completeness <= max;
       },
-      sortDirections: ['descend', 'ascend'] as const,
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 180,
+      render: (text: string) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
+      sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
     },
     {
       title: '操作',
       key: 'action',
-      render: (_: any, record: Product) => (
+      width: 150,
+      render: (_, record) => (
         <Space size="middle">
-          {record.source === 'manual' && (
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            >
-              编辑
-            </Button>
-          )}
-          {record.source === 'crawler' && record.status === 'crawler_failed' && (
-            <Button
-              type="link"
-              icon={<SyncOutlined />}
-              onClick={() => simulateCrawling(record.id)}
-            >
-              重试
-            </Button>
-          )}
-          <Button
-            type="link"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.id)}
-          >
+          <Button type="link" onClick={() => handleEdit(record)}>
+            编辑
+          </Button>
+          <Button type="link" danger onClick={() => handleDelete(record.id)}>
             删除
           </Button>
         </Space>
@@ -486,43 +455,43 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 模拟爬虫状态变化
-  const simulateCrawling = (productId: string) => {
-    // 先将状态改为进行中
+  const simulateCrawling = (id: string) => {
+    // 更新状态为爬虫进行中
+    setData(prevData => {
+      const newData = prevData.map(item =>
+        item.id === id
+          ? { ...item, status: 'crawler_running' }
+          : item
+      );
+      localStorage.setItem('products', JSON.stringify(newData));
+      return newData;
+    });
+
+    // 模拟爬虫完成
     setTimeout(() => {
       setData(prevData => {
-        const newData = prevData.map(item => 
-          item.id === productId
-            ? { ...item, status: 'crawler_running' as const }
-            : item
-        );
+        const newData = prevData.map(item => {
+          if (item.id === id) {
+            const success = Math.random() > 0.3; // 70% 成功率
+            const newItem = {
+              ...item,
+              status: success ? 'crawler_success' : 'crawler_failed',
+            };
+            // 如果爬虫成功,添加到选品库
+            if (success) {
+              addSelection({
+                ...newItem,
+                status: 'pending' // 在选品库中状态为待分配
+              });
+            }
+            return newItem;
+          }
+          return item;
+        });
         localStorage.setItem('products', JSON.stringify(newData));
         return newData;
       });
-
-      // 随机模拟成功或失败
-      setTimeout(() => {
-        const isSuccess = Math.random() > 0.3; // 70%的概率成功
-        setData(prevData => {
-          const finalData = prevData.map(item => 
-            item.id === productId
-              ? { 
-                  ...item, 
-                  status: isSuccess ? 'crawler_success' : 'crawler_failed' as const,
-                  errorMessage: !isSuccess ? '网络错误或商品已下架' : undefined
-                }
-              : item
-          );
-          localStorage.setItem('products', JSON.stringify(finalData));
-          return finalData;
-        });
-
-        if (!isSuccess) {
-          message.error(`商品 ${productId} 爬取失败`);
-        } else {
-          message.success(`商品 ${productId} 爬取成功`);
-        }
-      }, Math.random() * 3000 + 2000); // 2-5秒后完成
-    }, 1000); // 1秒后开始
+    }, 3000); // 3秒后完成
   };
 
   return (
@@ -562,17 +531,27 @@ const ProductLibrary: React.FC = () => {
         <ProductFilter onFilter={handleFilter} />
 
         <Table
-          rowKey="id"
           columns={columns}
-          dataSource={filteredProducts.length > 0 ? filteredProducts : data}
+          dataSource={filteredProducts}
+          rowKey="id"
           loading={loading}
           rowSelection={{
             selectedRowKeys,
-            onChange: (newSelectedRowKeys) => {
-              setSelectedRowKeys(newSelectedRowKeys);
-            },
+            onChange: (selectedRowKeys) => setSelectedRowKeys(selectedRowKeys),
           }}
-          onChange={handleTableChange}
+          pagination={{
+            total,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total) => `共 ${total} 条记录`,
+          }}
+          onChange={(pagination, filters, sorter) => {
+            // 处理排序
+            if (sorter && 'field' in sorter) {
+              setSortField(sorter.field as string);
+              setSortOrder(sorter.order || undefined);
+            }
+          }}
         />
       </Card>
 
