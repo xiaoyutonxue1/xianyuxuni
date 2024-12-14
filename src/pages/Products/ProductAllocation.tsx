@@ -95,12 +95,19 @@ const ProductAllocation: React.FC = () => {
 
   // 过滤和搜索选品
   const getFilteredSelections = () => {
+    let filteredData = [...selections];
+    
+    // 按创建时间降序排序
+    filteredData.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
     if (!searchText) {
-      return selections;
+      return filteredData;
     }
 
     const searchLower = searchText.toLowerCase();
-    return selections.filter(selection => 
+    return filteredData.filter(selection => 
       selection.name.toLowerCase().includes(searchLower) ||
       selection.category.toLowerCase().includes(searchLower)
     );
@@ -208,8 +215,6 @@ const ProductAllocation: React.FC = () => {
       setSelectedSelections(selectedRows);
     }
   };
-
-  const filteredData = getFilteredSelections();
 
   // 批量操作菜单
   const batchOperationItems = [
@@ -343,18 +348,17 @@ const ProductAllocation: React.FC = () => {
 
         <Table
           columns={columns}
-          dataSource={filteredData}
-          rowSelection={rowSelection}
+          dataSource={getFilteredSelections()}
           rowKey="id"
+          rowSelection={rowSelection}
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: total => `共 ${total} 条选品`,
+            showTotal: total => `共 ${total} 条记录`,
           }}
           loading={loading}
-          locale={{
-            emptyText: <Empty description="暂无选品" />
-          }}
+          defaultSortOrder="descend"
+          sortDirections={['descend']}
         />
       </Card>
 

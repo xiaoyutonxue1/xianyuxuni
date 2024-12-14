@@ -35,7 +35,7 @@ const { Text } = Typography;
 // 商品状态配置
 const statusConfig = {
   manual: { 
-    text: '手动模式', 
+    text: '手动创建', 
     color: 'success',
     icon: null 
   },
@@ -77,29 +77,97 @@ const getInitialProducts = () => {
 
 const ProductLibrary: React.FC = () => {
   const navigate = useNavigate();
-  const { addSelection } = useSelectionStore();
+  const { addSelection, selections, deleteSelections } = useSelectionStore();
   const [loading, setLoading] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
-  const [data, setData] = useState<any[]>(getInitialProducts());
   const [searchText, setSearchText] = useState('');
   const [filterValues, setFilterValues] = useState<any>({});
-  const [sortField, setSortField] = useState<string>('createdAt');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('descend');
-  const [total, setTotal] = useState(data.length);
-  const [filteredProducts, setFilteredProducts] = useState(data);
   const productSettings = useSettingsStore(state => state.productSettings);
   const confirmModalRef = useRef<any>(null);
 
-  // 更新数据时同时更新 localStorage
-  const updateData = (newData: Product[]) => {
-    setData(newData);
-    setTotal(newData.length);
-    localStorage.setItem('products', JSON.stringify(newData));
-    // 同时更新筛选结果
-    setFilteredProducts(newData);
+  // 过滤和搜索商品
+  const getFilteredProducts = () => {
+    let filteredData = [...selections];
+    
+    // 按创建时间降序排序
+    filteredData.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    // 搜索过滤
+    if (searchText) {
+      const searchLower = searchText.toLowerCase();
+      filteredData = filteredData.filter(item => 
+        item.name.toLowerCase().includes(searchLower) ||
+        item.category.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // 应用筛选条件
+    if (filterValues.category) {
+      filteredData = filteredData.filter(item => 
+        item.category === filterValues.category
+      );
+    }
+
+    return filteredData;
+  };
+
+  // 处理删除
+  const handleDelete = (id: string) => {
+    if (confirmModalRef.current) return;
+    showDeleteConfirm([id]);
+  };
+
+  // 显示删除确认框
+  const showDeleteConfirm = (ids: string[]) => {
+    if (confirmModalRef.current) return;
+    
+    confirmModalRef.current = confirm({
+      title: '确认删除',
+      icon: <ExclamationCircleFilled />,
+      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可恢复！`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      centered: true,
+      onOk: async () => {
+        try {
+          setLoading(true);
+          await deleteSelections(ids);
+          setSelectedRowKeys([]);
+          message.success('删除成功');
+        } catch (error) {
+          message.error('删除失败');
+        } finally {
+          setLoading(false);
+          confirmModalRef.current = null;
+        }
+      },
+      onCancel: () => {
+        confirmModalRef.current = null;
+      },
+    });
+  };
+
+  // 处理批量删除
+  const handleBatchDelete = () => {
+    showDeleteConfirm(selectedRowKeys.map(key => key.toString()));
+  };
+
+  // 处理批量下架
+  const handleBatchOffline = () => {
+    const updatedSelections = selections.map(item => 
+      selectedRowKeys.includes(item.id) 
+        ? { ...item, status: 'inactive' as const }
+        : item
+    );
+    // TODO: 实现批量更新状态的功能
+    setSelectedRowKeys([]);
+    message.success('批量下架成功');
   };
 
   // 处理新增
@@ -139,24 +207,16 @@ const ProductLibrary: React.FC = () => {
         lastUpdated: new Date().toISOString()
       };
 
-      // 添加到当前页面的数据中
-      const newData = [newSelection, ...data];
-      updateData(newData);
+      // 添加到选品库
+      addSelection(newSelection);
 
-      // 如果是手动模式,同时添加到选品库(使用不同的状态)
-      if (values.method === 'manual') {
-        addSelection({
-          ...newSelection,
-          status: 'pending' // 在选品库中使用待分配状态
-        });
-      }
-
-      message.success('选品创建成功');
+      // 关闭弹窗并提示
       setIsCreateModalVisible(false);
+      message.success('选品创建成功');
 
-      // 如果是爬虫模式,模拟爬虫状态变化
+      // 如果是爬虫模式，显示提示信息
       if (values.method === 'crawler') {
-        simulateCrawling(newSelection.id);
+        message.info('爬虫功能开发中，敬请期待');
       }
     } catch (error) {
       message.error('创建失败');
@@ -167,19 +227,13 @@ const ProductLibrary: React.FC = () => {
   const handleEditSubmit = async (values: any) => {
     try {
       setLoading(true);
-      setData(prevData => {
-        const newData = prevData.map(item =>
-          item.id === selectedProduct?.id
-            ? { ...item, ...values }
-            : item
-        );
-        localStorage.setItem('products', JSON.stringify(newData));
-        // 同时更新筛选结果
-        setFilteredProducts(newData);
-        return newData;
+      // 更新选品数据
+      addSelection({
+        ...selectedProduct,
+        ...values,
+        lastUpdated: new Date().toISOString()
       });
-      setTotal(data.length);
-      message.success('商品更新成功');
+      message.success('选品更新成功');
       setIsEditModalVisible(false);
       setSelectedProduct(null);
     } catch (error) {
@@ -189,98 +243,27 @@ const ProductLibrary: React.FC = () => {
     }
   };
 
-  // 处理删除
-  const handleDelete = (id: string) => {
-    if (confirmModalRef.current) return;
-    showDeleteConfirm([id]);
-  };
-
-  // 显示删除确认框
-  const showDeleteConfirm = (ids: string[]) => {
-    if (confirmModalRef.current) return;
-    
-    confirmModalRef.current = confirm({
-      title: '确认删除',
-      icon: <ExclamationCircleFilled />,
-      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可恢复！`,
-      okText: '确定',
-      okType: 'danger',
-      cancelText: '取消',
-      centered: true,
-      onOk: async () => {
-        try {
-          setLoading(true);
-          const newData = data.filter(item => !ids.includes(item.id));
-          updateData(newData);
-          setSelectedRowKeys([]);
-          message.success('删除成功');
-        } catch (error) {
-          message.error('删除失败');
-        } finally {
-          setLoading(false);
-          confirmModalRef.current = null;
-        }
-      },
-      onCancel: () => {
-        confirmModalRef.current = null;
-      },
-    });
-  };
-
-  // 处理批量删除
-  const handleBatchDelete = () => {
-    showDeleteConfirm(selectedRowKeys.map(key => key.toString()));
-  };
-
-  // 处理批量下架
-  const handleBatchOffline = () => {
-    const newData = data.map(item => 
-      selectedRowKeys.includes(item.id) 
-        ? { ...item, status: 'inactive' as const }
-        : item
-    );
-    updateData(newData);
-    setSelectedRowKeys([]);
-    message.success('批量下架成功');
-  };
-
-  // 批量操作菜单
-  const batchActionMenuItems = [
-    {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: '批量删除',
-      onClick: handleBatchDelete,
-      danger: true
-    },
-    {
-      key: 'offline',
-      icon: <StopOutlined />,
-      label: '批量下架',
-      onClick: handleBatchOffline
-    },
-    {
-      key: 'export',
-      icon: <ExportOutlined />,
-      label: '导出数据'
-    }
-  ];
-
   // 表格列配置
   const columns: ColumnsType<Product> = [
     {
-      title: '商品名称',
-      dataIndex: 'name',
-      key: 'name',
-      width: 300,
-      render: (text, record) => (
+      title: '商品信息',
+      key: 'productInfo',
+      render: (_, record: Product) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{text}</Text>
-          {record.category && <Tag>{record.category}</Tag>}
+          <Space>
+            <span style={{ fontWeight: 'bold' }}>{record.name}</span>
+            <Tag>{record.category}</Tag>
+          </Space>
+          <Space size="small">
+            <Tag color="blue">来源: {record.source === 'manual' ? '手动' : '自动'}</Tag>
+            {record.completeness && (
+              <Tag color={record.completeness >= 100 ? 'success' : 'warning'}>
+                完整度: {record.completeness}%
+              </Tag>
+            )}
+          </Space>
           {record.description && (
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {record.description}
-            </Text>
+            <span className="text-gray-500 text-sm">{record.description}</span>
           )}
         </Space>
       ),
@@ -288,33 +271,34 @@ const ProductLibrary: React.FC = () => {
     {
       title: '价格/库存',
       key: 'priceAndStock',
-      width: 150,
-      render: (_, record) => (
+      render: (_, record: Product) => (
         <Space direction="vertical" size={0}>
-          <Text>¥{record.price}</Text>
-          <Text type="secondary">库存: {record.stock}</Text>
+          <span style={{ fontWeight: 'bold' }}>¥{record.price}</span>
+          <span style={{ color: '#666' }}>库存: {record.stock}</span>
         </Space>
       ),
     },
     {
       title: '状态',
-      dataIndex: 'status',
       key: 'status',
       width: 150,
-      render: (status: keyof typeof statusConfig) => {
-        const config = statusConfig[status] || {
-          text: status,
+      render: (_, record: Product) => {
+        const config = statusConfig[record.status] || {
+          text: record.status,
           color: 'default',
           icon: null
         };
+
         return (
-          <Tag color={config.color}>
-            {config.icon}{config.text}
-          </Tag>
+          <Space direction="vertical" size={0}>
+            <Tag color={config.color}>
+              {config.icon}{config.text}
+            </Tag>
+          </Space>
         );
       },
       filters: [
-        { text: '手动模式', value: 'manual' },
+        { text: '手动创建', value: 'manual' },
         { text: '待爬虫', value: 'crawler_pending' },
         { text: '爬虫进行中', value: 'crawler_running' },
         { text: '爬虫成功', value: 'crawler_success' },
@@ -322,56 +306,6 @@ const ProductLibrary: React.FC = () => {
         { text: '已下架', value: 'inactive' },
       ],
       onFilter: (value, record) => record.status === value,
-    },
-    {
-      title: '完整度',
-      key: 'completeness',
-      width: 200,
-      render: (_, record) => {
-        const completeness = calculateCompleteness(record);
-        const missingFields = getMissingFields(record);
-        const status = getCompletenessStatus(completeness);
-        
-        // 根据完整度计算渐变色
-        const getGradientColor = (percent: number) => {
-          // 从红色渐变到绿色
-          const red = Math.round(255 * (100 - percent) / 100);
-          const green = Math.round(255 * percent / 100);
-          return `rgb(${red}, ${green}, 0)`;
-        };
-        
-        return (
-          <Tooltip 
-            title={
-              missingFields.length > 0 
-                ? `缺失字段: ${missingFields.join(', ')}` 
-                : '信息完整'
-            }
-          >
-            <Progress 
-              percent={completeness} 
-              size="small"
-              strokeColor={{
-                '0%': '#108ee9',
-                '100%': '#87d068',
-              }}
-              trailColor="#f5f5f5"
-              format={(percent) => `${percent}%`}
-            />
-          </Tooltip>
-        );
-      },
-      filters: [
-        { text: '100%', value: '100-100' },
-        { text: '75-99%', value: '75-99' },
-        { text: '50-74%', value: '50-74' },
-        { text: '0-49%', value: '0-49' }
-      ],
-      onFilter: (value, record) => {
-        const [min, max] = (value as string).split('-').map(Number);
-        const completeness = calculateCompleteness(record);
-        return completeness >= min && completeness <= max;
-      },
     },
     {
       title: '创建时间',
@@ -457,42 +391,59 @@ const ProductLibrary: React.FC = () => {
   // 模拟爬虫状态变化
   const simulateCrawling = (id: string) => {
     // 更新状态为爬虫进行中
-    setData(prevData => {
-      const newData = prevData.map(item =>
-        item.id === id
-          ? { ...item, status: 'crawler_running' }
-          : item
-      );
-      localStorage.setItem('products', JSON.stringify(newData));
-      return newData;
+    addSelection({
+      id,
+      status: 'crawler_running',
+      lastUpdated: new Date().toISOString()
     });
+    message.success('选品创建成功，正在进行爬虫...');
 
     // 模拟爬虫完成
     setTimeout(() => {
-      setData(prevData => {
-        const newData = prevData.map(item => {
-          if (item.id === id) {
-            const success = Math.random() > 0.3; // 70% 成功率
-            const newItem = {
-              ...item,
-              status: success ? 'crawler_success' : 'crawler_failed',
-            };
-            // 如果爬虫成功,添加到选品库
-            if (success) {
-              addSelection({
-                ...newItem,
-                status: 'pending' // 在选品库中状态为待分配
-              });
-            }
-            return newItem;
-          }
-          return item;
-        });
-        localStorage.setItem('products', JSON.stringify(newData));
-        return newData;
+      const success = Math.random() > 0.3; // 70% 成功率
+      addSelection({
+        id,
+        status: success ? 'crawler_success' : 'crawler_failed',
+        lastUpdated: new Date().toISOString()
       });
-    }, 3000); // 3秒后完成
+      
+      // 如果爬虫成功，更新状态为待分配
+      if (success) {
+        setTimeout(() => {
+          addSelection({
+            id,
+            status: 'pending',
+            lastUpdated: new Date().toISOString()
+          });
+          message.success('爬虫完成，选品已进入待分配状态');
+        }, 1000);
+      } else {
+        message.error('爬虫失败，请重试或切换为手动模式');
+      }
+    }, 3000);
   };
+
+  // 批量操作菜单
+  const batchActionMenuItems = [
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '批量删除',
+      onClick: handleBatchDelete,
+      danger: true
+    },
+    {
+      key: 'offline',
+      icon: <StopOutlined />,
+      label: '批量下架',
+      onClick: handleBatchOffline
+    },
+    {
+      key: 'export',
+      icon: <ExportOutlined />,
+      label: '导出数据'
+    }
+  ];
 
   return (
     <div className="p-6">
@@ -502,7 +453,9 @@ const ProductLibrary: React.FC = () => {
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
               新增商品
             </Button>
-            <Button icon={<RobotOutlined />}>批量抓取</Button>
+            <Button icon={<RobotOutlined />} onClick={() => message.info('爬虫功能开发中，敬请期待')}>
+              批量抓取
+            </Button>
             {selectedRowKeys.length > 0 && (
               <Dropdown 
                 menu={{ 
@@ -523,7 +476,9 @@ const ProductLibrary: React.FC = () => {
             <Search
               placeholder="搜索商品"
               style={{ width: 200 }}
-              onSearch={() => {/* 处理搜索 */}}
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              allowClear
             />
           </Space>
         </div>
@@ -532,7 +487,7 @@ const ProductLibrary: React.FC = () => {
 
         <Table
           columns={columns}
-          dataSource={filteredProducts}
+          dataSource={getFilteredProducts()}
           rowKey="id"
           loading={loading}
           rowSelection={{
@@ -540,18 +495,13 @@ const ProductLibrary: React.FC = () => {
             onChange: (selectedRowKeys) => setSelectedRowKeys(selectedRowKeys),
           }}
           pagination={{
-            total,
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total) => `共 ${total} 条记录`,
           }}
-          onChange={(pagination, filters, sorter) => {
-            // 处理排序
-            if (sorter && 'field' in sorter) {
-              setSortField(sorter.field as string);
-              setSortOrder(sorter.order || undefined);
-            }
-          }}
+          onChange={handleTableChange}
+          defaultSortOrder="descend"
+          sortDirections={['descend']}
         />
       </Card>
 

@@ -15,6 +15,30 @@ v0.2.2
   - 完善数据一致性保证
   - 改进状态变更追踪
 
+## 选品状态说明
+
+### 新建选品页状态
+- manual: 手动创建
+- crawler_pending: 待爬虫
+- crawler_running: 爬虫进行中
+- crawler_success: 爬虫成功
+- crawler_failed: 爬虫失败
+- inactive: 已下架
+
+### 选品管理页状态
+- pending: 待分配
+- distributed: 已分配
+- inactive: 已下架
+
+### 状态流转说明
+1. 手动创建流程：
+   - manual -> pending -> distributed
+2. 爬虫创建流程：
+   - crawler_pending -> crawler_running -> crawler_success/crawler_failed
+   - crawler_success -> pending -> distributed
+3. 下架操作：
+   - 任意状态 -> inactive
+
 ## 数据结构
 
 ### 选品表 (selections)
