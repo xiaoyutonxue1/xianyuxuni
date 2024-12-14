@@ -10,7 +10,7 @@ interface SelectionStore {
   addSelection: (selection: ProductSelection) => void;
   updateSelection: (selection: ProductSelection) => void;
   removeSelection: (selectionId: string) => void;
-  updateSelectionStatus: (selectionId: string, status: ProductSelection['status']) => void;
+  updateSelectionStatus: (selectionId: string, status: ProductSelection['status'], distributedAt?: string) => void;
   
   // 查询方法
   getPendingSelections: () => ProductSelection[];
@@ -37,9 +37,14 @@ const useSelectionStore = create<SelectionStore>((set, get) => ({
     selections: state.selections.filter((s) => s.id !== selectionId)
   })),
 
-  updateSelectionStatus: (selectionId, status) => set((state) => ({
+  updateSelectionStatus: (selectionId, status, distributedAt) => set((state) => ({
     selections: state.selections.map((s) =>
-      s.id === selectionId ? { ...s, status, lastUpdated: new Date().toISOString() } : s
+      s.id === selectionId ? { 
+        ...s, 
+        status, 
+        distributedAt: status === 'distributed' ? (distributedAt || new Date().toISOString()) : undefined,
+        lastUpdated: new Date().toISOString() 
+      } : s
     )
   })),
 

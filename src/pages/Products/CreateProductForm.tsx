@@ -5,6 +5,7 @@ import type { CreateProductRequest } from '../../types/product';
 import { categoryOptions, deliveryMethods } from '../../utils/constants';
 import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
 import useSelectionStore from '../../store/selectionStore';
+import useSettingsStore from '../../store/settingsStore';
 
 interface CreateProductFormProps {
   onSubmit: (values: CreateProductRequest) => Promise<void>;
@@ -25,10 +26,22 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
 
   // 使用 selectionStore
   const { addSelection } = useSelectionStore();
+  const { productSettings } = useSettingsStore();
 
   // 获取当前发货方式的配置
   const getDeliveryMethodConfig = (methodValue: string) => {
     return deliveryMethods.find(method => method.value === methodValue);
+  };
+
+  // 获取分类选项
+  const getCategoryOptions = () => {
+    if (!productSettings?.categories) {
+      return [];
+    }
+    return productSettings.categories.map(category => ({
+      label: category,
+      value: category
+    }));
   };
 
   // 验证发货信息格式
@@ -247,9 +260,10 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
             <Form.Item
               name="category"
               label="商品分类"
+              rules={[{ required: true, message: '请选择商品分类' }]}
             >
               <Select placeholder="请选择商品分类">
-                {categoryOptions.map(option => (
+                {getCategoryOptions().map(option => (
                   <Select.Option key={option.value} value={option.value}>
                     {option.label}
                   </Select.Option>

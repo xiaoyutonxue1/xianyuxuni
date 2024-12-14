@@ -19,8 +19,8 @@ const ProductAllocation: React.FC = () => {
   
   // 使用 store
   const { storeAccounts, storeGroups } = useSettingsStore();
-  const { addProducts } = useProductStore();
-  const { getPendingSelections, updateSelectionStatus } = useSelectionStore();
+  const { addProducts, products } = useProductStore();
+  const { selections, updateSelectionStatus } = useSelectionStore();
 
   // 处理分配
   const handleDistribute = async () => {
@@ -46,7 +46,7 @@ const ProductAllocation: React.FC = () => {
       
       // 处理每个选中的选品
       for (const selectionId of selectedRowKeys) {
-        const selection = getPendingSelections().find(s => s.id === selectionId);
+        const selection = selections.find(s => s.id === selectionId);
         if (!selection) continue;
 
         // 为每个店铺创建商品
@@ -75,10 +75,9 @@ const ProductAllocation: React.FC = () => {
         }
 
         // 更新选品状态
-        updateSelectionStatus(selectionId, 'distributed');
+        const now = new Date().toISOString();
+        updateSelectionStatus(selectionId, 'distributed', now);
       }
-
-      console.log('新创建的商品数据:', newProducts); // 添加日志
 
       // 保存商品数据
       addProducts(newProducts);
@@ -99,13 +98,12 @@ const ProductAllocation: React.FC = () => {
 
   // 过滤和搜索选品
   const getFilteredSelections = () => {
-    const pendingSelections = getPendingSelections();
     if (!searchText) {
-      return pendingSelections;
+      return selections;
     }
 
     const searchLower = searchText.toLowerCase();
-    return pendingSelections.filter(selection => 
+    return selections.filter(selection => 
       selection.name.toLowerCase().includes(searchLower) ||
       selection.category.toLowerCase().includes(searchLower)
     );
@@ -146,9 +144,55 @@ const ProductAllocation: React.FC = () => {
       ),
     },
     {
+      title: '分配状态',
+      key: 'status',
+      width: 120,
+      render: (_, record: ProductSelection) => {
+        const isDistributed = record.status === 'distributed';
+        return (
+          <Space direction="vertical" size={0}>
+            <Tag color={isDistributed ? 'success' : 'blue'}>
+              {isDistributed ? '已分配' : '待分配'}
+            </Tag>
+            {isDistributed && record.distributedAt && (
+              <span className="text-gray-500 text-xs">
+                {new Date(record.distributedAt).toLocaleString()}
+              </span>
+            )}
+          </Space>
+        );
+      },
+    },
+    {
+      title: '分配信息',
+      key: 'distributionInfo',
+      render: (_, record: ProductSelection) => {
+        if (record.status !== 'distributed') {
+          return <span className="text-gray-400">-</span>;
+        }
+
+        // 获取该选品相关的所有商品
+        const relatedProducts = products.filter(p => p.selectionId === record.id);
+        const storeNames = relatedProducts.map(p => {
+          const store = storeAccounts.find(s => s.id === p.storeId);
+          return store?.name || p.storeId;
+        });
+
+        return (
+          <Space direction="vertical" size={0}>
+            <span>已分配到 {storeNames.length} 个店铺</span>
+            <span className="text-gray-500 text-xs">
+              {storeNames.join(', ')}
+            </span>
+          </Space>
+        );
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'createdAt',
       key: 'createdAt',
+      width: 180,
       render: (time: string) => new Date(time).toLocaleString(),
     }
   ];
@@ -159,7 +203,7 @@ const ProductAllocation: React.FC = () => {
     onChange: (selectedKeys: string[], selectedRows: ProductSelection[]) => {
       setSelectedRowKeys(selectedKeys);
       setSelectedSelections(selectedRows);
-    },
+    }
   };
 
   const filteredData = getFilteredSelections();
@@ -173,14 +217,14 @@ const ProductAllocation: React.FC = () => {
             icon={<ShopOutlined />}
             onClick={() => {
               if (selectedRowKeys.length === 0) {
-                message.warning('请先选择要分配的商品');
+                message.warning('请先选择要分配的选品');
                 return;
               }
               setIsModalVisible(true);
             }}
             disabled={selectedRowKeys.length === 0}
           >
-            分配到店铺 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            分配选品 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
           </Button>
           <Search
             placeholder="搜索商品名称/分类"
@@ -191,21 +235,6 @@ const ProductAllocation: React.FC = () => {
           />
         </div>
 
-        <Alert
-          message="选品分配说明"
-          description={
-            <ul className="list-disc list-inside">
-              <li>选择一个或多个待分配的商品</li>
-              <li>点击"分配到店铺"按钮,选择目标店铺</li>
-              <li>每个店铺将使用其默认模板创建独立商品</li>
-              <li>分配后商品将出现在商品管理页面</li>
-            </ul>
-          }
-          type="info"
-          showIcon
-          className="mb-4"
-        />
-
         <Table
           columns={columns}
           dataSource={filteredData}
@@ -214,11 +243,11 @@ const ProductAllocation: React.FC = () => {
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,
-            showTotal: total => `共 ${total} 条待分配商品`,
+            showTotal: total => `共 ${total} 条选品`,
           }}
           loading={loading}
           locale={{
-            emptyText: <Empty description="暂无待分配商品" />
+            emptyText: <Empty description="暂无选品" />
           }}
         />
       </Card>

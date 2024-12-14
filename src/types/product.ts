@@ -54,6 +54,7 @@ export interface ProductSelection {
   productUrl?: string;
   errorMessage?: string;
   completeness?: number;
+  distributedAt?: string;
 }
 
 // 商品状态类型
