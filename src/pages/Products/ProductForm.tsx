@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Form, Input, Select, InputNumber, Button, Modal, Switch, Progress, Space } from 'antd';
-import type { Product, CreateProductRequest } from '../../types/product';
+import type { ProductSelection, CreateSelectionRequest } from '../../types/product';
 
 const { Option } = Select;
 
@@ -27,8 +27,8 @@ const categoryOptions = [
 ];
 
 interface ProductFormProps {
-  initialData?: Product;
-  onSubmit: (values: CreateProductRequest) => Promise<void>;
+  initialData?: ProductSelection;
+  onSubmit: (values: CreateSelectionRequest) => Promise<void>;
   loading?: boolean;
   onCancel: () => void;
 }
@@ -138,7 +138,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
   // 表单提交处理
   const handleSubmit = async (values: any) => {
     try {
-      const submitData: CreateProductRequest = {
+      const submitData: CreateSelectionRequest = {
         ...values,
         hasSpecs,
         method: addMode,
@@ -364,7 +364,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 </div>
               )}
 
-              {/* 多规格表单 */}
+              {/* ���规格表单 */}
               {hasSpecs && (
                 <Form.List
                   name="specs"

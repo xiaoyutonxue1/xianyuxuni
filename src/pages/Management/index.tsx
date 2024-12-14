@@ -1,130 +1,171 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, Tag, Select, message, Typography, Tooltip } from 'antd';
-import { ShopOutlined, ReloadOutlined, EditOutlined, StopOutlined } from '@ant-design/icons';
-import type { Product, DistributeStatus } from '../../types/product';
+import { Card, Table, Button, Input, Space, Tag, Select, message, Typography, Tooltip, Modal } from 'antd';
+import { ShopOutlined, EditOutlined, StopOutlined, ExclamationCircleOutlined, SyncOutlined } from '@ant-design/icons';
+import type { Product } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
+import useProductStore from '../../store/productStore';
 import type { ColumnsType } from 'antd/es/table/interface';
 
 const { Search } = Input;
 const { Text } = Typography;
+const { confirm } = Modal;
 
 const ProductManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
   const [activeStoreId, setActiveStoreId] = useState<string>('all');
+  const [searchText, setSearchText] = useState('');
+  
+  // 使用 store
   const { storeAccounts } = useSettingsStore();
+  const { products, updateProduct } = useProductStore();
 
-  // 获取商品列表
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      // TODO: 替换为实际的API调用
-      const mockData = [
-        {
-          id: '1',
-          name: '示例商品1',
-          category: 'study' as const,
-          price: 99.99,
-          stock: 100,
-          status: 'published' as const,
-          createdAt: new Date().toISOString(),
-          store: '默认店铺',
-          description: '示例描述',
-          source: 'manual' as const,
-          hasSpecs: false,
-          distributeInfo: [
-            {
-              storeId: '1', // 对应水城有趣的海鲜
-              templateId: '1',
-              status: 'published' as DistributeStatus,
-              distributedAt: new Date().toISOString(),
-              distributedTitle: '【正版资源】示例商品1',
-              distributedContent: '✨ 示例描述\n\n💫 发货方式：网盘自动发货\n🌟 售后服务：终身有效'
-            }
-          ]
-        },
-      ];
-      setProducts(mockData);
-    } catch (error) {
-      message.error('获取商品列表失败');
-    } finally {
+  // 加载数据
+  useEffect(() => {
+    console.log('商品管理页面 - 商品数据:', products);
+  }, [products]);
+
+  // 刷新数据
+  const handleRefresh = () => {
+    setLoading(true);
+    // 模拟刷新延迟
+    setTimeout(() => {
       setLoading(false);
-    }
+      message.success('数据已刷新');
+    }, 1000);
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  // 处理商品下架
+  const handleOffline = (record: Product) => {
+    confirm({
+      title: '确认下架',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要下架商品"${record.name}"吗？`,
+      onOk: async () => {
+        try {
+          const updatedProduct = {
+            ...record,
+            status: 'offline' as const,
+            lastUpdated: new Date().toISOString()
+          };
+          updateProduct(updatedProduct);
+          message.success('商品已下架');
+        } catch (error) {
+          message.error('操作失败');
+        }
+      }
+    });
+  };
+
+  // 处理商品发布
+  const handlePublish = (record: Product) => {
+    confirm({
+      title: '确认发布',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要发布商品"${record.name}"吗？`,
+      onOk: async () => {
+        try {
+          const updatedProduct = {
+            ...record,
+            status: 'published' as const,
+            publishedAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString()
+          };
+          updateProduct(updatedProduct);
+          message.success('商品已发布');
+        } catch (error) {
+          message.error('操作失败');
+        }
+      }
+    });
+  };
+
+  // 处理商品编辑
+  const handleEdit = (record: Product) => {
+    // TODO: 实现编辑功能
+    message.info('编辑功能开发中');
+  };
+
+  // 过滤和搜索商品
+  const getFilteredProducts = () => {
+    const filteredProducts = products.filter(product => {
+      // 店铺筛选
+      if (activeStoreId !== 'all' && product.storeId !== activeStoreId) {
+        return false;
+      }
+
+      // 搜索过滤
+      if (searchText) {
+        const searchLower = searchText.toLowerCase();
+        return (
+          product.name.toLowerCase().includes(searchLower) ||
+          product.distributedTitle?.toLowerCase().includes(searchLower) ||
+          product.category.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      return true;
+    });
+
+    console.log('商品管理页面 - 过滤后的商品数据:', filteredProducts); // 添加日志
+    return filteredProducts;
+  };
 
   const columns: ColumnsType<Product> = [
     {
-      title: '商品名称',
-      key: 'name',
-      render: (_, record: Product) => {
-        const distributeInfo = record.distributeInfo?.find(info => 
-          activeStoreId === 'all' ? true : info.storeId === activeStoreId
-        );
-        
-        return (
-          <Space direction="vertical" size={0}>
+      title: '商品信息',
+      key: 'productInfo',
+      render: (_, record: Product) => (
+        <Space direction="vertical" size={0}>
+          <Space>
             <Text strong>{record.name}</Text>
-            {distributeInfo?.distributedTitle && (
-              <Tooltip title="店铺展示标题">
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  {distributeInfo.distributedTitle}
-                </Text>
-              </Tooltip>
-            )}
+            <Tag>{record.category}</Tag>
           </Space>
-        );
-      },
+          {record.distributedTitle && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              模板渲染: {record.distributedTitle}
+            </Text>
+          )}
+        </Space>
+      ),
     },
     {
-      title: '发布账号',
+      title: '发布店铺',
       key: 'store',
       render: (_, record: Product) => {
-        const distributeInfo = record.distributeInfo?.find(info => 
-          activeStoreId === 'all' ? true : info.storeId === activeStoreId
-        );
-        
-        if (!distributeInfo) return '-';
-        
-        const store = storeAccounts.find(s => s.id === distributeInfo.storeId);
+        const store = storeAccounts.find(s => s.id === record.storeId);
         return (
-          <Space>
-            <ShopOutlined />
-            <span>{store?.name}</span>
-            <Tag color="blue">{store?.platform}</Tag>
+          <Space direction="vertical" size={0}>
+            <Space>
+              <ShopOutlined />
+              <Text>{store?.name}</Text>
+              <Tag color="blue">{store?.platform}</Tag>
+            </Space>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              模板ID: {record.templateId}
+            </Text>
           </Space>
         );
       },
+      filters: storeAccounts.map(store => ({
+        text: store.name,
+        value: store.id,
+      })),
+      onFilter: (value, record) => record.storeId === value,
     },
     {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
+      title: '价格/库存',
+      key: 'priceAndStock',
+      render: (_, record: Product) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>¥{record.price}</Text>
+          <Text type="secondary">库存: {record.stock}</Text>
+        </Space>
+      ),
     },
     {
-      title: '价格',
-      dataIndex: 'price',
-      key: 'price',
-      render: (price: number) => `¥${price}`,
-    },
-    {
-      title: '库存',
-      dataIndex: 'stock',
-      key: 'stock',
-    },
-    {
-      title: '发布状态',
+      title: '状态',
       key: 'status',
       render: (_, record: Product) => {
-        const distributeInfo = record.distributeInfo?.find(info => 
-          activeStoreId === 'all' ? true : info.storeId === activeStoreId
-        );
-        
-        if (!distributeInfo) return '-';
-
         const statusMap = {
           draft: { color: 'default', text: '草稿' },
           pending: { color: 'processing', text: '待发布' },
@@ -133,60 +174,72 @@ const ProductManagement: React.FC = () => {
           offline: { color: 'default', text: '已下架' },
         };
 
-        const { color, text } = statusMap[distributeInfo.status];
-        return <Tag color={color}>{text}</Tag>;
+        const { color, text } = statusMap[record.status];
+        return (
+          <Space direction="vertical" size={0}>
+            <Tag color={color}>{text}</Tag>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {record.distributedAt ? `分配于 ${new Date(record.distributedAt).toLocaleDateString()}` : ''}
+            </Text>
+            {record.publishedAt && (
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                发布于 ${new Date(record.publishedAt).toLocaleDateString()}
+              </Text>
+            )}
+          </Space>
+        );
       },
+      filters: [
+        { text: '草稿', value: 'draft' },
+        { text: '待发布', value: 'pending' },
+        { text: '已发布', value: 'published' },
+        { text: '发布失败', value: 'failed' },
+        { text: '已下架', value: 'offline' },
+      ],
+      onFilter: (value, record) => record.status === value,
     },
     {
       title: '操作',
       key: 'action',
-      render: (_, record: Product) => {
-        const distributeInfo = record.distributeInfo?.find(info => 
-          activeStoreId === 'all' ? true : info.storeId === activeStoreId
-        );
-        
-        if (!distributeInfo) return null;
-        
-        return (
-          <Space size="middle">
-            <Button 
-              type="link" 
-              icon={<EditOutlined />}
-              onClick={() => {
-                // TODO: 实现编辑功能
-                console.log('编辑商品:', record.id);
-              }}
+      render: (_, record: Product) => (
+        <Space size="middle">
+          {record.status === 'draft' && (
+            <Button
+              type="link"
+              onClick={() => handlePublish(record)}
             >
-              编辑
+              发布
             </Button>
-            <Button 
-              type="link" 
-              danger 
-              icon={<StopOutlined />}
-              onClick={() => {
-                // TODO: 实现下架功能
-                console.log('下架商品:', record.id);
-              }}
-            >
-              下架
-            </Button>
-          </Space>
-        );
-      },
+          )}
+          {record.status !== 'offline' && (
+            <>
+              <Button 
+                type="link" 
+                icon={<EditOutlined />}
+                onClick={() => handleEdit(record)}
+              >
+                编辑
+              </Button>
+              <Button 
+                type="link" 
+                danger 
+                icon={<StopOutlined />}
+                onClick={() => handleOffline(record)}
+              >
+                下架
+              </Button>
+            </>
+          )}
+        </Space>
+      ),
     },
   ];
 
-  // 根据当前选中的店铺过滤商品
-  const filteredProducts = products.filter(product => {
-    if (activeStoreId === 'all') return true;
-    return product.distributeInfo?.some(info => info.storeId === activeStoreId);
-  });
-
   return (
-    <div className="space-y-4">
+    <div className="p-6 space-y-4">
       <Card>
         <div className="flex justify-between items-center">
-          <Space>
+          <Space size="middle">
             <Select
               value={activeStoreId}
               onChange={setActiveStoreId}
@@ -205,27 +258,32 @@ const ProductManagement: React.FC = () => {
               ))}
             </Select>
             <Button
-              icon={<ReloadOutlined />}
-              onClick={() => fetchProducts()}
+              icon={<SyncOutlined />}
+              onClick={handleRefresh}
+              loading={loading}
             >
               刷新
             </Button>
           </Space>
+          
           <Search
-            placeholder="搜索商品"
+            placeholder="搜索商品名称/分发标题"
             style={{ width: 300 }}
-            onSearch={value => console.log(value)}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            allowClear
           />
         </div>
       </Card>
 
       <Table
         columns={columns}
-        dataSource={filteredProducts}
+        dataSource={getFilteredProducts()}
         rowKey="id"
         pagination={{
           showSizeChanger: true,
           showQuickJumper: true,
+          showTotal: total => `共 ${total} 条记录`,
         }}
         loading={loading}
       />

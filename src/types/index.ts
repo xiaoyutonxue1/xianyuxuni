@@ -28,6 +28,7 @@ export interface Store {
   id: string;
   name: string;
   shippingInfo: ShippingInfo;
+  productTemplates?: Template[];
 }
 
 export interface ShippingInfo {

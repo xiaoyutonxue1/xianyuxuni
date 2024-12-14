@@ -28,20 +28,65 @@ export interface ProductSpec {
   deliveryInfo: string;
 }
 
-// 商品基础信息
-export interface ProductBase {
+// 选品状态类型
+export type ProductSelectionStatus = 
+  | 'pending'           // 待分配
+  | 'distributed'       // 已分配
+  | 'inactive';         // 已下架
+
+// 选品基础信息
+export interface ProductSelection {
+  id: string;
   name: string;
   category: ProductCategory;
-  store: string;
   description: string;
   keywords?: string[];
   remark?: string;
+  price: number;
+  stock: number;
+  createdAt: string;
+  status: ProductSelectionStatus;
+  source: 'manual' | 'crawler';
+  hasSpecs: boolean;
+  specs?: ProductSpec[];
+  deliveryMethod?: DeliveryMethod;
+  deliveryInfo?: string;
+  productUrl?: string;
+  errorMessage?: string;
+  completeness?: number;
 }
 
-// 商品媒体信息
-export interface ProductMedia {
-  headImage?: string;
-  publicImages?: string[];
+// 商品状态类型
+export type ProductStatus = 
+  | 'draft'      // 草稿
+  | 'pending'    // 待发布
+  | 'published'  // 已发布
+  | 'failed'     // 发布失败
+  | 'offline';   // 已下架
+
+// 完整的商品信息(从选品分配后生成)
+export interface Product extends ProductSelection {
+  selectionId: string;           // 关联的选品ID
+  storeId: string;              // 关联的店铺ID
+  templateId: string;           // 使用的模板ID
+  distributedTitle: string;     // 使用模板后的标题
+  distributedContent: string;   // 使用模板后的文案
+  status: ProductStatus;        // 商品状态
+  distributedAt: string;       // 分配时间
+  publishedAt?: string;        // 发布时间
+  lastUpdated: string;         // 最后更新时间
+}
+
+// 创建选品请求
+export interface CreateSelectionRequest extends Omit<ProductSelection, 'id' | 'createdAt' | 'status'> {
+  method: 'manual' | 'crawler';
+  sourceUrl?: string;
+}
+
+// 分配选品请求
+export interface DistributeSelectionRequest {
+  selectionId: string;
+  storeIds: string[];
 }
 
 // 商品销售信息(单规格)
@@ -53,33 +98,25 @@ export interface ProductSaleInfo {
   deliveryInfo?: string;
 }
 
-// 商品状态类型
-export type ProductStatus = 
-  | 'manual'           // 手动模式
-  | 'crawler_pending'  // 待爬虫
-  | 'crawler_running'  // 爬虫进行中
-  | 'crawler_success'  // 爬虫成功
-  | 'crawler_failed'   // 爬虫失败
-  | 'inactive';        // 已下架
-
-// 完整的商品信息
-export interface Product extends ProductBase, ProductMedia {
-  id: string;
-  name: string;
-  category: ProductCategory;
-  price: number;
-  stock: number;
-  createdAt: string;
-  status: ProductStatus;
-  source: 'manual' | 'crawler';
-  hasSpecs: boolean;
-  specs?: ProductSpec[];
-  deliveryMethod?: DeliveryMethod;
-  deliveryInfo?: string;
-  productUrl?: string;
+// 商品分配信息
+export interface DistributeInfo {
+  storeId: string;
+  templateId: string;
+  status: DistributeStatus;
+  distributedAt: string;
+  publishedAt?: string;
   errorMessage?: string;
-  completeness?: number;
+  distributedTitle?: string;    // 使用模板后的标题
+  distributedContent?: string;  // 使用模板后的文案
 }
+
+// 商品分配状态
+export type DistributeStatus = 
+  | 'draft'      // 草稿
+  | 'pending'    // 待发布
+  | 'published'  // 已发布
+  | 'failed'     // 发布失败
+  | 'offline';   // 已下架
 
 // 创建商品请求
 export interface CreateProductRequest extends ProductBase, ProductMedia {

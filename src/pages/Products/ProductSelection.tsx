@@ -1,62 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Modal, Form, Alert, Select } from 'antd';
-import { PlusOutlined, ShopOutlined } from '@ant-design/icons';
-import type { Product } from '../../types/product';
+import React, { useState } from 'react';
+import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, Alert, Empty, message, Typography } from 'antd';
+import { ShopOutlined } from '@ant-design/icons';
+import type { ProductSelection } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
-import type { TableProps } from 'antd';
+import useProductStore from '../../store/productStore';
+import useSelectionStore from '../../store/selectionStore';
 import type { ColumnsType } from 'antd/es/table/interface';
 
 const { Search } = Input;
+const { Text } = Typography;
 
-const ProductSelection: React.FC = () => {
+const ProductSelectionPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<Product[]>([]);
-  const [total, setTotal] = useState(0);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+  const [selectedSelections, setSelectedSelections] = useState<ProductSelection[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
+  
+  // 使用 store
   const { storeAccounts, storeGroups } = useSettingsStore();
+  const { addProducts } = useProductStore();
+  const { selections, updateSelectionStatus } = useSelectionStore();
 
-  // 获取商品列表
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      // TODO: 替换为实际的API调用
-      const mockData = [
-        {
-          id: '1',
-          name: '示例商品1',
-          category: 'study' as const,
-          price: 99.99,
-          stock: 100,
-          status: 'manual' as const,
-          createdAt: new Date().toISOString(),
-          store: '默认店铺',
-          description: '示例描述',
-          source: 'manual' as const,
-          hasSpecs: false,
-        },
-        // ... 更多模拟数据
-      ];
-      setData(mockData);
-      setTotal(mockData.length);
-    } catch (error) {
-      message.error('获取商品列表失败');
-    } finally {
-      setLoading(false);
-    }
+  // 过滤选品数据
+  const getFilteredSelections = () => {
+    const pendingSelections = selections.filter(s => s.status === 'pending');
+    if (!searchText) return pendingSelections;
+    
+    const searchLower = searchText.toLowerCase();
+    return pendingSelections.filter(selection => (
+      selection.name.toLowerCase().includes(searchLower) ||
+      selection.category?.toLowerCase().includes(searchLower)
+    ));
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  // 处理发布
-  const handlePublish = async () => {
+  // 处理分配
+  const handleDistribute = async () => {
     try {
       const values = await form.validateFields();
-      const { stores, templateId } = values;
+      const { stores } = values;
 
       // 处理店铺组,展开所有店铺ID
       const selectedStores = stores.map((value: string) => {
@@ -71,136 +54,197 @@ const ProductSelection: React.FC = () => {
       // 去重
       const uniqueStores = [...new Set(selectedStores)];
       
-      // 更新选中商品的分配信息
-      const updatedProducts = data.map(product => {
-        if (selectedRowKeys.includes(product.id)) {
-          return {
-            ...product,
-            distributeInfo: uniqueStores.map(storeId => ({
-              storeId,
-              templateId,
-              status: 'pending' as const,
-              distributedAt: new Date().toISOString(),
-            }))
-          };
-        }
-        return product;
-      });
+      // 为每个选中的选品创建商品
+      const newProducts = [];
+      
+      // 处理每个选中的选品
+      for (const selectionId of selectedRowKeys) {
+        const selection = selections.find(s => s.id === selectionId);
+        if (!selection) continue;
 
-      setData(updatedProducts);
-      message.success('商品发布成功');
+        // 为每个店铺创建商品
+        for (const storeId of uniqueStores) {
+          const storeAccount = storeAccounts.find(account => account.id === storeId);
+          const defaultTemplate = storeAccount?.features.templates?.find(template => template.isDefault);
+          
+          if (!defaultTemplate) {
+            throw new Error(`店铺 ${storeAccount?.name} 未设置默认模板`);
+          }
+
+          // 创建新商品
+          const newProduct = {
+            ...selection,
+            id: `${selection.id}-${storeId}`,
+            selectionId: selection.id,
+            storeId,
+            templateId: defaultTemplate.id,
+            status: 'draft',
+            distributedAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+            distributedTitle: defaultTemplate.title.replace('{title}', selection.name),
+            distributedContent: defaultTemplate.description.replace('{description}', selection.description || '')
+          };
+          newProducts.push(newProduct);
+        }
+
+        // 更新选品状态
+        updateSelectionStatus(selectionId, 'distributed');
+      }
+
+      // 保存商品数据
+      addProducts(newProducts);
+      
+      message.success('分配成功');
       setIsModalVisible(false);
       setSelectedRowKeys([]);
-      setSelectedProducts([]);
+      setSelectedSelections([]);
       form.resetFields();
     } catch (error) {
-      message.error('发布失败');
+      if (error instanceof Error) {
+        message.error(error.message);
+      } else {
+        message.error('分配失败');
+      }
     }
   };
 
-  const columns: ColumnsType<Product> = [
+  const columns: ColumnsType<ProductSelection> = [
     {
-      title: '商品名称',
-      dataIndex: 'name',
-      key: 'name',
+      title: '商品信息',
+      key: 'productInfo',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{record.name}</Text>
+          {record.category && <Tag>{record.category}</Tag>}
+          {record.description && (
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {record.description}
+            </Text>
+          )}
+        </Space>
+      ),
     },
     {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
+      title: '价格/库存',
+      key: 'priceAndStock',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>¥{record.price}</Text>
+          <Text type="secondary">库存: {record.stock}</Text>
+        </Space>
+      ),
     },
     {
-      title: '价格',
-      dataIndex: 'price',
-      key: 'price',
-      render: (price: number) => `¥${price}`,
+      title: '创建方式',
+      key: 'source',
+      render: (_, record) => (
+        <Tag color={record.source === 'manual' ? 'blue' : 'purple'}>
+          {record.source === 'manual' ? '手动创建' : '爬虫抓取'}
+        </Tag>
+      ),
+      filters: [
+        { text: '手动创建', value: 'manual' },
+        { text: '爬虫抓取', value: 'crawler' },
+      ],
+      onFilter: (value, record) => record.source === value,
     },
     {
-      title: '库存',
-      dataIndex: 'stock',
-      key: 'stock',
-    },
-    {
-      title: '发布状态',
-      key: 'distributeStatus',
-      render: (_, record: Product) => {
-        if (!record.distributeInfo?.length) return '-';
-        return (
-          <Space>
-            {record.distributeInfo.map((info, index) => {
-              const statusMap = {
-                draft: { color: 'default', text: '草稿' },
-                pending: { color: 'processing', text: '待发布' },
-                published: { color: 'success', text: '已发布' },
-                failed: { color: 'error', text: '发布失败' },
-                offline: { color: 'default', text: '已下架' },
-              };
-              const { color, text } = statusMap[info.status];
-              const store = storeAccounts.find(s => s.id === info.storeId);
-              return (
-                <Tag key={index} color={color}>
-                  {store?.name}: {text}
-                </Tag>
-              );
-            })}
-          </Space>
-        );
+      title: '状态',
+      key: 'status',
+      render: (_, record) => {
+        const statusMap = {
+          pending: { color: 'processing', text: '待分配' },
+          distributed: { color: 'success', text: '已分配' },
+        };
+        const { color, text } = statusMap[record.status];
+        return <Tag color={color}>{text}</Tag>;
       },
+      filters: [
+        { text: '待分配', value: 'pending' },
+        { text: '已分配', value: 'distributed' },
+      ],
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: '操作',
+      key: 'action',
+      render: (_, record) => (
+        <Space size="middle">
+          {record.status === 'pending' && (
+            <Button
+              type="link"
+              onClick={() => {
+                setSelectedRowKeys([record.id]);
+                setSelectedSelections([record]);
+                setIsModalVisible(true);
+              }}
+            >
+              分配
+            </Button>
+          )}
+        </Space>
+      ),
     },
   ];
 
   const rowSelection = {
     selectedRowKeys,
-    onChange: (newSelectedRowKeys: React.Key[], selectedRows: Product[]) => {
+    onChange: (newSelectedRowKeys: React.Key[], selectedRows: ProductSelection[]) => {
       setSelectedRowKeys(newSelectedRowKeys);
-      setSelectedProducts(selectedRows);
+      setSelectedSelections(selectedRows);
     },
+    getCheckboxProps: (record: ProductSelection) => ({
+      disabled: record.status !== 'pending', // 只允许选择待分配的选品
+    }),
   };
 
   return (
     <div className="space-y-4">
       <Card>
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <Space>
             <Button
               type="primary"
               icon={<ShopOutlined />}
               onClick={() => {
                 if (selectedRowKeys.length === 0) {
-                  message.warning('请先选择要发布的商品');
+                  message.warning('请先选择要分配的选品');
                   return;
                 }
                 setIsModalVisible(true);
               }}
+              disabled={selectedRowKeys.length === 0}
             >
-              发布商品
+              批量分配
             </Button>
           </Space>
           <Search
-            placeholder="搜索商品"
+            placeholder="搜索选品名称/分类"
             style={{ width: 300 }}
-            onSearch={value => console.log(value)}
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            allowClear
           />
         </div>
       </Card>
 
       <Table
         columns={columns}
-        dataSource={data}
+        dataSource={getFilteredSelections()}
         rowKey="id"
         rowSelection={rowSelection}
         pagination={{
-          total,
           showSizeChanger: true,
           showQuickJumper: true,
+          showTotal: total => `共 ${total} 条记录`,
         }}
         loading={loading}
       />
 
       <Modal
-        title="发布商品"
+        title="分配选品"
         open={isModalVisible}
-        onOk={handlePublish}
+        onOk={handleDistribute}
         onCancel={() => {
           setIsModalVisible(false);
           form.resetFields();
@@ -209,8 +253,8 @@ const ProductSelection: React.FC = () => {
       >
         <div className="mb-4">
           <Alert
-            message={`已选择 ${selectedProducts.length} 个商品`}
-            description="选中的商品将被发布到所选店铺,每个店铺将创建一个独立商品。"
+            message={`已选择 ${selectedSelections.length} 个选品`}
+            description="选中的选品将被分配到所选店铺，每个店铺将使用其默认模板创建独立商品。"
             type="info"
             showIcon
           />
@@ -223,7 +267,7 @@ const ProductSelection: React.FC = () => {
           >
             <Select
               mode="multiple"
-              placeholder="请选择要发布的店铺"
+              placeholder="请选择要分配的店铺"
               style={{ width: '100%' }}
               options={[
                 {
@@ -236,26 +280,12 @@ const ProductSelection: React.FC = () => {
                 {
                   label: '单个店铺',
                   options: storeAccounts.map(account => ({
-                    label: `${account.name} (${account.platform})`,
+                    label: `${account.name} (${account.platform})${account.features.templates?.some(t => t.isDefault) ? '' : ' (未设置默认模板)'}`,
                     value: account.id,
                   })),
                 },
               ]}
             />
-          </Form.Item>
-
-          <Form.Item
-            name="templateId"
-            label="选择模板"
-            rules={[{ required: true, message: '请选择模板' }]}
-          >
-            <Select placeholder="请选择模板">
-              {storeAccounts[0]?.productTemplates?.map(template => (
-                <Select.Option key={template.id} value={template.id}>
-                  {template.name}
-                </Select.Option>
-              ))}
-            </Select>
           </Form.Item>
         </Form>
       </Modal>
@@ -263,4 +293,4 @@ const ProductSelection: React.FC = () => {
   );
 };
 
-export default ProductSelection; 
+export default ProductSelectionPage; 

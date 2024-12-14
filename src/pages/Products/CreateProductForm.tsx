@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, InputNumber, Button, Switch, Progress, Tooltip, Space } from 'antd';
+import { Form, Input, Select, InputNumber, Button, Switch, Progress, Tooltip, Space, message } from 'antd';
 import { InfoCircleFilled, CheckCircleFilled } from '@ant-design/icons';
 import type { CreateProductRequest } from '../../types/product';
 import { categoryOptions, deliveryMethods } from '../../utils/constants';
 import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
+import useSelectionStore from '../../store/selectionStore';
 
 interface CreateProductFormProps {
   onSubmit: (values: CreateProductRequest) => Promise<void>;
@@ -21,6 +22,9 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
   const [addMode, setAddMode] = useState<'manual' | 'crawler'>('manual');
   const [completeness, setCompleteness] = useState(0);
   const [missingFields, setMissingFields] = useState<string[]>([]);
+
+  // 使用 selectionStore
+  const { addSelection } = useSelectionStore();
 
   // 获取当前发货方式的配置
   const getDeliveryMethodConfig = (methodValue: string) => {
@@ -105,6 +109,44 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
     updateCompleteness();
   }, [hasSpecs, addMode]);
 
+  // 处理表单提交
+  const handleSubmit = async (values: any) => {
+    try {
+      await onSubmit(values);
+      
+      // 创建选品记录
+      const selection = {
+        id: Date.now().toString(), // 临时ID
+        name: values.name,
+        category: values.category,
+        price: values.price,
+        stock: values.stock,
+        status: 'pending' as const,
+        createdAt: new Date().toISOString(),
+        description: values.description,
+        source: addMode,
+        hasSpecs: hasSpecs,
+        saleInfo: hasSpecs ? undefined : {
+          price: values.price,
+          stock: values.stock,
+          deliveryMethod: values.deliveryMethod,
+          deliveryInfo: values.deliveryInfo,
+          originalPrice: values.price
+        },
+        specs: hasSpecs ? values.specs : undefined
+      };
+
+      // 使用 selectionStore 添加选品
+      addSelection(selection);
+
+      message.success('创建成功，选品已添加到选品管理');
+      form.resetFields();
+      updateCompleteness();
+    } catch (error) {
+      message.error('创建失败');
+    }
+  };
+
   return (
     <div className="p-4">
       <div className="mb-4 flex justify-between items-center">
@@ -183,7 +225,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
           deliveryMethod: 'baiduDisk',
           deliveryInfo: ''
         }}
-        onFinish={onSubmit}
+        onFinish={handleSubmit}
         onValuesChange={handleFormChange}
       >
         {/* 隐藏的方法字段 */}
