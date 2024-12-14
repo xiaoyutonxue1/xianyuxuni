@@ -157,7 +157,29 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
         form={form}
         layout="vertical"
         initialValues={initialValues}
-        onFinish={onSubmit}
+        onFinish={(values) => {
+          // 构造提交数据
+          const submitData = {
+            ...values,
+            hasSpecs,
+            source: 'manual',
+            status: 'manual',
+          };
+
+          // 处理规格相关字段
+          if (hasSpecs) {
+            // 多规格模式：使用specs字段
+            delete submitData.price;
+            delete submitData.stock;
+            delete submitData.deliveryMethod;
+            delete submitData.deliveryInfo;
+          } else {
+            // 单规格模式：删除specs字段
+            delete submitData.specs;
+          }
+
+          onSubmit(submitData);
+        }}
         onValuesChange={handleFormChange}
       >
         {/* 基础信息 */}

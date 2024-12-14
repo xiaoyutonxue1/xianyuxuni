@@ -28,72 +28,6 @@ import type { Product } from '../../types/product';
 const { Search } = Input;
 const { confirm } = Modal;
 
-// 模拟数据
-const mockProducts: Product[] = [
-  {
-    id: '1',
-    name: '绝命毒师全集 4K',
-    category: 'american_drama',
-    price: 129.99,
-    stock: 999,
-    createdAt: '2024-03-02 16:30:00',
-    status: 'manual',
-    source: 'manual',
-    store: '默认店铺',
-    description: '高清4K蓝光版本',
-    hasSpecs: true,
-    specs: [
-      {
-        id: '1',
-        name: '百度网盘发货',
-        price: 129.99,
-        stock: 999,
-        deliveryMethod: 'baiduDisk',
-        deliveryInfo: 'https://pan.baidu.com/s/xxx'
-      },
-      {
-        id: '2',
-        name: '夸克网盘发货',
-        price: 129.99,
-        stock: 999,
-        deliveryMethod: 'quarkDisk',
-        deliveryInfo: 'https://pan.quark.cn/s/xxx'
-      }
-    ]
-  },
-  {
-    id: '2',
-    name: '深入理解计算机系统',
-    category: 'ebook',
-    price: 49.99,
-    stock: 999,
-    createdAt: '2024-03-02 14:00:00',
-    status: 'crawler_running',
-    source: 'crawler',
-    store: '默认店铺',
-    description: 'CSAPP经典著作',
-    hasSpecs: false,
-    deliveryMethod: 'baiduDisk',
-    deliveryInfo: 'https://pan.baidu.com/s/xxx'
-  },
-  {
-    id: '3',
-    name: 'Python高级教程',
-    category: 'study',
-    price: 79.99,
-    stock: 999,
-    createdAt: '2024-03-02 12:00:00',
-    status: 'crawler_failed',
-    source: 'crawler',
-    store: '默认店铺',
-    description: 'Python进阶教程',
-    hasSpecs: false,
-    deliveryMethod: 'baiduDisk',
-    deliveryInfo: 'https://pan.baidu.com/s/xxx',
-    errorMessage: '网络错误或商品已下架'
-  }
-];
-
 // 商品状态配置
 const statusConfig = {
   manual: { 
@@ -128,46 +62,35 @@ const statusConfig = {
   },
 };
 
-// 分配状态配置
-const distributeStatusConfig = {
-  draft: { 
-    text: '草稿', 
-    color: 'default',
-    icon: null 
-  },
-  pending: { 
-    text: '待发布', 
-    color: 'processing',
-    icon: <ClockCircleOutlined style={{ marginRight: 4 }} /> 
-  },
-  published: { 
-    text: '已发布', 
-    color: 'success',
-    icon: <CheckCircleFilled style={{ marginRight: 4 }} /> 
-  },
-  failed: { 
-    text: '发布失败', 
-    color: 'error',
-    icon: <CloseCircleFilled style={{ marginRight: 4 }} /> 
-  },
-  offline: { 
-    text: '已下架', 
-    color: 'default',
-    icon: <StopOutlined style={{ marginRight: 4 }} /> 
-  },
+// 从 localStorage 获取数据,如果没有则返回空数组
+const getInitialProducts = () => {
+  const savedProducts = localStorage.getItem('products');
+  if (savedProducts) {
+    return JSON.parse(savedProducts);
+  }
+  return [];
 };
 
 const ProductLibrary: React.FC = () => {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState(mockProducts);
-  const [total, setTotal] = useState(mockProducts.length);
+  const [data, setData] = useState(getInitialProducts());
+  const [total, setTotal] = useState(data.length);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>(mockProducts);
+  const [filteredProducts, setFilteredProducts] = useState(data);
   const productSettings = useSettingsStore(state => state.productSettings);
   const confirmModalRef = useRef<any>(null);
+
+  // 更新数据时同时更新 localStorage
+  const updateData = (newData: Product[]) => {
+    setData(newData);
+    setTotal(newData.length);
+    localStorage.setItem('products', JSON.stringify(newData));
+    // 同时更新筛选结果
+    setFilteredProducts(newData);
+  };
 
   // 处理新增
   const handleAdd = () => {
@@ -191,8 +114,8 @@ const ProductLibrary: React.FC = () => {
         status: values.method === 'manual' ? 'manual' : 'crawler_pending',
         source: values.method,
       };
-      setData([newProduct, ...data]);
-      setTotal(total + 1);
+      const newData = [newProduct, ...data];
+      updateData(newData);
       message.success('商品添加成功');
       setIsCreateModalVisible(false);
 
@@ -211,14 +134,21 @@ const ProductLibrary: React.FC = () => {
   const handleEditSubmit = async (values: any) => {
     try {
       setLoading(true);
-      const newData = data.map(item =>
-        item.id === selectedProduct?.id
-          ? { ...item, ...values }
-          : item
-      );
-      setData(newData);
+      setData(prevData => {
+        const newData = prevData.map(item =>
+          item.id === selectedProduct?.id
+            ? { ...item, ...values }
+            : item
+        );
+        localStorage.setItem('products', JSON.stringify(newData));
+        // 同时更新筛选结果
+        setFilteredProducts(newData);
+        return newData;
+      });
+      setTotal(data.length);
       message.success('商品更新成功');
       setIsEditModalVisible(false);
+      setSelectedProduct(null);
     } catch (error) {
       message.error('操作失败');
     } finally {
@@ -226,7 +156,7 @@ const ProductLibrary: React.FC = () => {
     }
   };
 
-  // 处理单个删除
+  // 处理删除
   const handleDelete = (id: string) => {
     if (confirmModalRef.current) return;
     showDeleteConfirm([id]);
@@ -248,8 +178,7 @@ const ProductLibrary: React.FC = () => {
         try {
           setLoading(true);
           const newData = data.filter(item => !ids.includes(item.id));
-          setData(newData);
-          setTotal(newData.length);
+          updateData(newData);
           setSelectedRowKeys([]);
           message.success('删除成功');
         } catch (error) {
@@ -274,10 +203,10 @@ const ProductLibrary: React.FC = () => {
   const handleBatchOffline = () => {
     const newData = data.map(item => 
       selectedRowKeys.includes(item.id) 
-        ? { ...item, status: 'inactive' }
+        ? { ...item, status: 'inactive' as const }
         : item
     );
-    setData(newData);
+    updateData(newData);
     setSelectedRowKeys([]);
     message.success('批量下架成功');
   };
@@ -336,55 +265,6 @@ const ProductLibrary: React.FC = () => {
       sortDirections: ['ascend', 'descend'] as const,
     },
     {
-      title: '发布店铺',
-      key: 'stores',
-      width: 200,
-      render: (_: any, record: Product) => {
-        if (!record.distributeInfo?.length) return '-';
-        return (
-          <Space wrap>
-            {record.distributeInfo.map((info, index) => (
-              <Tag key={index} color="blue">
-                {storeAccounts.find(store => store.id === info.storeId)?.name || '未知店铺'}
-              </Tag>
-            ))}
-          </Space>
-        );
-      },
-    },
-    {
-      title: '发布状态',
-      key: 'distributeStatus',
-      width: 200,
-      render: (_: any, record: Product) => {
-        if (!record.distributeInfo?.length) return '-';
-        return (
-          <Space wrap>
-            {record.distributeInfo.map((info, index) => {
-              const status = info.status;
-              const config = distributeStatusConfig[status];
-              const store = storeAccounts.find(s => s.id === info.storeId);
-              return (
-                <Tag key={index} color={config.color}>
-                  {config.icon}
-                  {store?.name}: {config.text}
-                </Tag>
-              );
-            })}
-          </Space>
-        );
-      },
-      filters: [
-        { text: '草稿', value: 'draft' },
-        { text: '待发布', value: 'pending' },
-        { text: '已发布', value: 'published' },
-        { text: '发布失败', value: 'failed' },
-        { text: '已下架', value: 'offline' },
-      ],
-      onFilter: (value: any, record: Product) => 
-        record.distributeInfo?.some(info => info.status === value) ?? false,
-    },
-    {
       title: '商品状态',
       dataIndex: 'status',
       key: 'status',
@@ -410,6 +290,40 @@ const ProductLibrary: React.FC = () => {
       key: 'completeness',
       width: 180,
       render: (_: any, record: Product) => {
+        // 爬虫模式
+        if (record.source === 'crawler') {
+          const statusMap = {
+            crawler_pending: { percent: 0, status: 'normal' as const },
+            crawler_running: { percent: 50, status: 'active' as const },
+            crawler_success: { percent: 100, status: 'success' as const },
+            crawler_failed: { percent: 50, status: 'exception' as const },
+            inactive: { percent: 100, status: 'normal' as const },
+          };
+
+          const { percent, status } = statusMap[record.status as keyof typeof statusMap] || 
+            { percent: 0, status: 'normal' as const };
+
+          return (
+            <Tooltip
+              title={record.errorMessage}
+              color={record.status === 'crawler_failed' ? '#ff4d4f' : '#fff'}
+            >
+              <Progress
+                percent={percent}
+                size="small"
+                status={status}
+                format={(percent) => (
+                  <span style={{ fontSize: '12px' }}>
+                    {percent}%
+                  </span>
+                )}
+                style={{ margin: 0 }}
+              />
+            </Tooltip>
+          );
+        }
+
+        // 手动模式
         const percent = calculateCompleteness(record);
         const missingFields = getMissingFields(record);
         
@@ -461,7 +375,22 @@ const ProductLibrary: React.FC = () => {
           </Tooltip>
         );
       },
-      sorter: (a: Product, b: Product) => calculateCompleteness(a) - calculateCompleteness(b),
+      sorter: (a: Product, b: Product) => {
+        // 爬虫模式
+        if (a.source === 'crawler' && b.source === 'crawler') {
+          const statusScore = {
+            crawler_pending: 0,
+            crawler_running: 50,
+            crawler_success: 100,
+            crawler_failed: 25,
+            inactive: 100,
+          };
+          return (statusScore[a.status as keyof typeof statusScore] || 0) - 
+                 (statusScore[b.status as keyof typeof statusScore] || 0);
+        }
+        // 手动模式
+        return calculateCompleteness(a) - calculateCompleteness(b);
+      },
       sortDirections: ['descend', 'ascend'] as const,
     },
     {
@@ -469,13 +398,24 @@ const ProductLibrary: React.FC = () => {
       key: 'action',
       render: (_: any, record: Product) => (
         <Space size="middle">
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          >
-            编辑
-          </Button>
+          {record.source === 'manual' && (
+            <Button
+              type="link"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            >
+              编辑
+            </Button>
+          )}
+          {record.source === 'crawler' && record.status === 'crawler_failed' && (
+            <Button
+              type="link"
+              icon={<SyncOutlined />}
+              onClick={() => simulateCrawling(record.id)}
+            >
+              重试
+            </Button>
+          )}
           <Button
             type="link"
             danger
@@ -496,7 +436,7 @@ const ProductLibrary: React.FC = () => {
 
   // 处理筛选
   const handleFilter = (filterValues: any) => {
-    let filtered = [...mockProducts];
+    let filtered = [...data];
 
     // 分类筛选
     if (filterValues.category) {
@@ -549,24 +489,32 @@ const ProductLibrary: React.FC = () => {
   const simulateCrawling = (productId: string) => {
     // 先将状态改为进行中
     setTimeout(() => {
-      setData(prevData => prevData.map(item => 
-        item.id === productId
-          ? { ...item, status: 'crawler_running' as const }
-          : item
-      ));
+      setData(prevData => {
+        const newData = prevData.map(item => 
+          item.id === productId
+            ? { ...item, status: 'crawler_running' as const }
+            : item
+        );
+        localStorage.setItem('products', JSON.stringify(newData));
+        return newData;
+      });
 
       // 随机模拟成功或失败
       setTimeout(() => {
         const isSuccess = Math.random() > 0.3; // 70%的概率成功
-        setData(prevData => prevData.map(item => 
-          item.id === productId
-            ? { 
-                ...item, 
-                status: isSuccess ? 'crawler_success' : 'crawler_failed' as const,
-                errorMessage: !isSuccess ? '网络错误或商品已下架' : undefined
-              }
-            : item
-        ));
+        setData(prevData => {
+          const finalData = prevData.map(item => 
+            item.id === productId
+              ? { 
+                  ...item, 
+                  status: isSuccess ? 'crawler_success' : 'crawler_failed' as const,
+                  errorMessage: !isSuccess ? '网络错误或商品已下架' : undefined
+                }
+              : item
+          );
+          localStorage.setItem('products', JSON.stringify(finalData));
+          return finalData;
+        });
 
         if (!isSuccess) {
           message.error(`商品 ${productId} 爬取失败`);
@@ -648,7 +596,10 @@ const ProductLibrary: React.FC = () => {
       <Modal
         title="编辑商品"
         open={isEditModalVisible}
-        onCancel={() => setIsEditModalVisible(false)}
+        onCancel={() => {
+          setIsEditModalVisible(false);
+          setSelectedProduct(null);
+        }}
         footer={null}
         width={800}
         centered
@@ -658,7 +609,10 @@ const ProductLibrary: React.FC = () => {
           <EditProductForm
             initialValues={selectedProduct}
             onSubmit={handleEditSubmit}
-            onCancel={() => setIsEditModalVisible(false)}
+            onCancel={() => {
+              setIsEditModalVisible(false);
+              setSelectedProduct(null);
+            }}
           />
         )}
       </Modal>

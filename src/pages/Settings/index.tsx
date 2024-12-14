@@ -4,6 +4,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
 import type { StoreGroup, StoreAccount, DeliveryMethodSetting, ProductTemplate } from '../../store/settingsStore';
 import { v4 as uuidv4 } from 'uuid';
+import type { FormInstance } from 'antd';
 
 const { TabPane } = Tabs;
 
@@ -191,37 +192,49 @@ const TemplateList: React.FC<{
 
 // 店铺表单
 const StoreForm: React.FC<{
+  form: FormInstance;
   initialValues?: StoreAccount;
   onSubmit: (values: StoreAccount) => void;
   onCancel: () => void;
-}> = ({ initialValues, onSubmit, onCancel }) => {
-  const [form] = Form.useForm();
+}> = ({ form, initialValues, onSubmit, onCancel }) => {
   const [isTemplateModalVisible, setIsTemplateModalVisible] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<ProductTemplate | undefined>();
   const [templates, setTemplates] = useState<ProductTemplate[]>(
-    initialValues?.features.templates || []
+    initialValues?.features?.templates || []
   );
 
   useEffect(() => {
-    if (initialValues) {
+    if (form && initialValues) {
       form.setFieldsValue(initialValues);
-      setTemplates(initialValues.features.templates);
+      setTemplates(initialValues.features?.templates || []);
     }
-  }, [initialValues, form]);
+  }, [form, initialValues]);
+
+  const handleSubmit = (values: any) => {
+    onSubmit({
+      ...values,
+      features: {
+        ...values.features,
+        templates,
+        priceAdjustment: values.features?.priceAdjustment || 0
+      }
+    });
+  };
 
   const handleTemplateSubmit = (values: ProductTemplate) => {
     let newTemplates: ProductTemplate[];
+    const newTemplate = {
+      ...values,
+      id: currentTemplate?.id || uuidv4()
+    };
+    
     if (currentTemplate) {
       // 编辑现有模板
       newTemplates = templates.map(t => 
-        t.id === currentTemplate.id ? { ...values, id: currentTemplate.id } : t
+        t.id === currentTemplate.id ? newTemplate : t
       );
     } else {
       // 添加新模板
-      const newTemplate = {
-        ...values,
-        id: uuidv4()
-      };
       newTemplates = [...templates, newTemplate];
     }
 
@@ -229,7 +242,7 @@ const StoreForm: React.FC<{
     if (values.isDefault) {
       newTemplates = newTemplates.map(t => ({
         ...t,
-        isDefault: t.id === (currentTemplate?.id || newTemplate.id)
+        isDefault: t.id === newTemplate.id
       }));
     }
 
@@ -255,94 +268,128 @@ const StoreForm: React.FC<{
     })));
   };
 
-  const handleSubmit = (values: any) => {
-    onSubmit({
-      ...values,
-      features: {
-        ...values.features,
-        templates
-      }
-    });
-  };
-
   return (
-    <>
+    <div className="space-y-4">
       <Form
         form={form}
         layout="vertical"
         onFinish={handleSubmit}
         initialValues={initialValues}
       >
-        <Form.Item
-          name="name"
-          label="店铺名称"
-          rules={[{ required: true, message: '请输入店铺名称' }]}
-        >
-          <Input placeholder="请输入店铺名称" />
-        </Form.Item>
+        {/* 基础信息 */}
+        <Card title="基础信息" className="shadow-sm">
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item
+              name="name"
+              label="店铺名称"
+              rules={[{ required: true, message: '请输入店铺名称' }]}
+            >
+              <Input placeholder="请输入店铺名称" />
+            </Form.Item>
 
-        <Form.Item
-          name="platform"
-          label="所属平台"
-          rules={[{ required: true, message: '请选择所属平台' }]}
-        >
-          <Select>
-            <Select.Option value="闲鱼">闲鱼</Select.Option>
-            <Select.Option value="淘宝">淘宝</Select.Option>
-          </Select>
-        </Form.Item>
+            <Form.Item
+              name="platform"
+              label="所属平台"
+              rules={[{ required: true, message: '请选择所属平台' }]}
+            >
+              <Select>
+                <Select.Option value="闲鱼">闲鱼</Select.Option>
+                <Select.Option value="淘宝">淘宝</Select.Option>
+              </Select>
+            </Form.Item>
+          </div>
 
-        <Form.Item
-          name={['features', 'priceAdjustment']}
-          label="价格调整"
-          tooltip="商品价格的上浮比例，0.1 表示上浮 10%"
-        >
-          <InputNumber
-            min={0}
-            max={1}
-            step={0.1}
-            style={{ width: '100%' }}
-            placeholder="请输入价格调整比例"
-          />
-        </Form.Item>
-
-        <Divider orientation="left">商品模板</Divider>
-
-        <div className="mb-4">
-          <Button
-            type="dashed"
-            onClick={() => {
-              setCurrentTemplate(undefined);
-              setIsTemplateModalVisible(true);
-            }}
-            block
+          <Form.Item
+            name={['features', 'priceAdjustment']}
+            label="价格调整"
+            tooltip="商品价格的上浮比例，0.1 表示上浮 10%"
           >
-            <PlusOutlined /> 添加模板
-          </Button>
-        </div>
+            <InputNumber
+              min={0}
+              max={1}
+              step={0.1}
+              style={{ width: '100%' }}
+              placeholder="请输入价格调整比例"
+            />
+          </Form.Item>
+        </Card>
 
-        <TemplateList
-          templates={templates}
-          onEdit={(template) => {
-            setCurrentTemplate(template);
-            setIsTemplateModalVisible(true);
-          }}
-          onDelete={handleDeleteTemplate}
-          onSetDefault={handleSetDefaultTemplate}
-        />
-
-        <Divider />
-
-        <Form.Item className="mb-0 text-right">
-          <Space>
-            <Button onClick={onCancel}>取消</Button>
-            <Button type="primary" htmlType="submit">
-              确定
+        {/* 商品模板 */}
+        <Card 
+          title="商品模板" 
+          className="shadow-sm"
+          extra={
+            <Button
+              type="primary"
+              onClick={() => {
+                setCurrentTemplate(undefined);
+                setIsTemplateModalVisible(true);
+              }}
+            >
+              添加模板
             </Button>
-          </Space>
-        </Form.Item>
+          }
+        >
+          <div className="space-y-4">
+            {templates.map(template => (
+              <Card
+                key={template.id}
+                size="small"
+                title={
+                  <Space>
+                    {template.name}
+                    {template.isDefault && <Tag color="blue">默认</Tag>}
+                  </Space>
+                }
+                extra={
+                  <Space>
+                    {!template.isDefault && (
+                      <Button
+                        type="link"
+                        size="small"
+                        onClick={() => handleSetDefaultTemplate(template.id)}
+                      >
+                        设为默认
+                      </Button>
+                    )}
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => {
+                        setCurrentTemplate(template);
+                        setIsTemplateModalVisible(true);
+                      }}
+                    >
+                      编辑
+                    </Button>
+                    <Button
+                      type="link"
+                      danger
+                      size="small"
+                      onClick={() => handleDeleteTemplate(template.id)}
+                    >
+                      删除
+                    </Button>
+                  </Space>
+                }
+              >
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-gray-500 mb-1">标题模板：</div>
+                    <div className="bg-gray-50 p-2 rounded">{template.title}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500 mb-1">文案模板：</div>
+                    <div className="bg-gray-50 p-2 rounded whitespace-pre-wrap">{template.description}</div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </Card>
       </Form>
 
+      {/* 模板编辑弹窗 */}
       <Modal
         title={currentTemplate ? '编辑模板' : '添加模板'}
         open={isTemplateModalVisible}
@@ -362,7 +409,7 @@ const StoreForm: React.FC<{
           }}
         />
       </Modal>
-    </>
+    </div>
   );
 };
 
@@ -393,14 +440,17 @@ const Settings: React.FC = () => {
   // 处理添加/编辑店铺
   const handleEditStore = (store?: StoreAccount) => {
     setCurrentStore(store);
-    if (store) {
+    if (store && storeForm) {
       storeForm.setFieldsValue({
-        ...store,
-        ...store.features.customFields,
-        priceAdjustment: store.features.priceAdjustment,
+        name: store.name,
+        platform: store.platform,
+        features: {
+          priceAdjustment: store.features.priceAdjustment,
+          templates: store.features.templates || []
+        }
       });
     } else {
-      storeForm.resetFields();
+      storeForm?.resetFields();
     }
     setIsStoreModalVisible(true);
   };
@@ -418,21 +468,16 @@ const Settings: React.FC = () => {
   };
 
   // 保存店铺
-  const handleSaveStore = async () => {
+  const handleSaveStore = async (values: StoreAccount) => {
     try {
-      const values = await storeForm.validateFields();
-      const { slogan, servicePromise, ...storeData } = values;
-      
       const storeInfo = {
         id: currentStore?.id || uuidv4(),
-        ...storeData,
+        name: values.name,
+        platform: values.platform,
         features: {
-          priceAdjustment: values.priceAdjustment || 0,
-          customFields: {
-            slogan,
-            servicePromise,
-          },
-        },
+          priceAdjustment: values.features?.priceAdjustment || 0,
+          templates: values.features?.templates || []
+        }
       };
 
       if (currentStore) {
@@ -446,7 +491,8 @@ const Settings: React.FC = () => {
       storeForm.resetFields();
       setCurrentStore(undefined);
     } catch (error) {
-      // 表单验证错误
+      console.error('保存店铺失败:', error);
+      message.error('保存失败，请重试');
     }
   };
 
@@ -810,7 +856,7 @@ const Settings: React.FC = () => {
       <Modal
         title={currentStore ? '编辑店铺' : '新增店铺'}
         open={isStoreModalVisible}
-        onOk={handleSaveStore}
+        onOk={() => storeForm.submit()}
         onCancel={() => {
           setIsStoreModalVisible(false);
           storeForm.resetFields();
@@ -818,6 +864,7 @@ const Settings: React.FC = () => {
         }}
       >
         <StoreForm
+          form={storeForm}
           initialValues={currentStore}
           onSubmit={handleSaveStore}
           onCancel={() => {
