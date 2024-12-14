@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Modal, Form, Alert, Select, Empty } from 'antd';
-import { ShopOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Input, Space, message, Tag, Modal, Form, Alert, Select, Empty, Dropdown } from 'antd';
+import { ShopOutlined, DownOutlined, DeleteOutlined, ExportOutlined } from '@ant-design/icons';
 import type { ProductSelection } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
@@ -20,7 +20,212 @@ const ProductAllocation: React.FC = () => {
   // 使用 store
   const { storeAccounts, storeGroups } = useSettingsStore();
   const { addProducts, products } = useProductStore();
-  const { selections, updateSelectionStatus } = useSelectionStore();
+  const { selections, updateSelectionStatus, deleteSelections } = useSelectionStore();
+
+  // 批量删除选品
+  const handleBatchDelete = () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个选品吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await deleteSelections(selectedRowKeys);
+          message.success('删除成功');
+          setSelectedRowKeys([]);
+          setSelectedSelections([]);
+        } catch (error) {
+          message.error('删除失败');
+        }
+      }
+    });
+  };
+
+  // 批量导出选品
+  const handleBatchExport = () => {
+    try {
+      // 准备导出数据
+      const exportData = selectedSelections.map(selection => {
+        // 获取该选品相关的所有商品
+        const relatedProducts = products.filter(p => p.selectionId === selection.id);
+        const storeNames = relatedProducts.map(p => {
+          const store = storeAccounts.find(s => s.id === p.storeId);
+          return store?.name || p.storeId;
+        });
+
+        return {
+          名称: selection.name,
+          分类: selection.category,
+          价格: selection.price,
+          库存: selection.stock,
+          创建时间: new Date(selection.createdAt).toLocaleString(),
+          状态: selection.status === 'pending' ? '待分配' : '已分配',
+          分配店铺: storeNames.join(', '),
+          来源: selection.source === 'manual' ? '手动创建' : '爬虫抓取'
+        };
+      });
+
+      // 转换为CSV
+      const headers = Object.keys(exportData[0]);
+      const csvContent = [
+        headers.join(','),
+        ...exportData.map(row => 
+          headers.map(header => {
+            const value = row[header as keyof typeof row];
+            return typeof value === 'string' && value.includes(',') 
+              ? `"${value}"`
+              : value;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // 创建下载
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `选品分配数据_${new Date().toLocaleDateString()}.csv`;
+      link.click();
+      
+      message.success('导出成功');
+    } catch (error) {
+      message.error('导出失败');
+    }
+  };
+
+  // 过滤和搜索选品
+  const getFilteredSelections = () => {
+    if (!searchText) {
+      return selections;
+    }
+
+    const searchLower = searchText.toLowerCase();
+    return selections.filter(selection => 
+      selection.name.toLowerCase().includes(searchLower) ||
+      selection.category.toLowerCase().includes(searchLower)
+    );
+  };
+
+  const columns: ColumnsType<ProductSelection> = [
+    {
+      title: '商品信息',
+      key: 'productInfo',
+      render: (_, record: ProductSelection) => (
+        <Space direction="vertical" size={0}>
+          <Space>
+            <span style={{ fontWeight: 'bold' }}>{record.name}</span>
+            <Tag>{record.category}</Tag>
+          </Space>
+          <Space size="small">
+            <Tag color="blue">来源: {record.source === 'manual' ? '手动' : '自动'}</Tag>
+            {record.completeness && (
+              <Tag color={record.completeness >= 100 ? 'success' : 'warning'}>
+                完整度: {record.completeness}%
+              </Tag>
+            )}
+          </Space>
+          {record.description && (
+            <span className="text-gray-500 text-sm">{record.description}</span>
+          )}
+        </Space>
+      ),
+    },
+    {
+      title: '价格/库存',
+      key: 'priceAndStock',
+      render: (_, record: ProductSelection) => (
+        <Space direction="vertical" size={0}>
+          <span style={{ fontWeight: 'bold' }}>¥{record.price}</span>
+          <span style={{ color: '#666' }}>库存: {record.stock}</span>
+        </Space>
+      ),
+    },
+    {
+      title: '分配状态',
+      key: 'status',
+      width: 120,
+      render: (_, record: ProductSelection) => {
+        const isDistributed = record.status === 'distributed';
+        return (
+          <Space direction="vertical" size={0}>
+            <Tag color={isDistributed ? 'success' : 'blue'}>
+              {isDistributed ? '已分配' : '待分配'}
+            </Tag>
+            {isDistributed && record.distributedAt && (
+              <span className="text-gray-500 text-xs">
+                {new Date(record.distributedAt).toLocaleString()}
+              </span>
+            )}
+          </Space>
+        );
+      },
+      filters: [
+        { text: '待分配', value: 'pending' },
+        { text: '已分配', value: 'distributed' },
+      ],
+      onFilter: (value, record) => record.status === value,
+    },
+    {
+      title: '分配信息',
+      key: 'distributionInfo',
+      render: (_, record: ProductSelection) => {
+        if (record.status !== 'distributed') {
+          return <span className="text-gray-400">-</span>;
+        }
+
+        // 获取该选品相关的所有商品
+        const relatedProducts = products.filter(p => p.selectionId === record.id);
+        const storeNames = relatedProducts.map(p => {
+          const store = storeAccounts.find(s => s.id === p.storeId);
+          return store?.name || p.storeId;
+        });
+
+        return (
+          <Space direction="vertical" size={0}>
+            <span>已分配到 {storeNames.length} 个店铺</span>
+            <span className="text-gray-500 text-xs">
+              {storeNames.join(', ')}
+            </span>
+          </Space>
+        );
+      },
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 180,
+      sorter: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      render: (time: string) => new Date(time).toLocaleString(),
+    }
+  ];
+
+  // 表格选择配置
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (selectedKeys: string[], selectedRows: ProductSelection[]) => {
+      setSelectedRowKeys(selectedKeys);
+      setSelectedSelections(selectedRows);
+    }
+  };
+
+  const filteredData = getFilteredSelections();
+
+  // 批量操作菜单
+  const batchOperationItems = [
+    {
+      key: 'delete',
+      label: '批量删除',
+      icon: <DeleteOutlined />,
+      onClick: handleBatchDelete,
+    },
+    {
+      key: 'export',
+      label: '批量导出',
+      icon: <ExportOutlined />,
+      onClick: handleBatchExport,
+    },
+  ];
 
   // 处理分配
   const handleDistribute = async () => {
@@ -96,136 +301,37 @@ const ProductAllocation: React.FC = () => {
     }
   };
 
-  // 过滤和搜索选品
-  const getFilteredSelections = () => {
-    if (!searchText) {
-      return selections;
-    }
-
-    const searchLower = searchText.toLowerCase();
-    return selections.filter(selection => 
-      selection.name.toLowerCase().includes(searchLower) ||
-      selection.category.toLowerCase().includes(searchLower)
-    );
-  };
-
-  const columns: ColumnsType<ProductSelection> = [
-    {
-      title: '商品信息',
-      key: 'productInfo',
-      render: (_, record: ProductSelection) => (
-        <Space direction="vertical" size={0}>
-          <Space>
-            <span style={{ fontWeight: 'bold' }}>{record.name}</span>
-            <Tag>{record.category}</Tag>
-          </Space>
-          <Space size="small">
-            <Tag color="blue">来源: {record.source === 'manual' ? '手动' : '自动'}</Tag>
-            {record.completeness && (
-              <Tag color={record.completeness >= 100 ? 'success' : 'warning'}>
-                完整度: {record.completeness}%
-              </Tag>
-            )}
-          </Space>
-          {record.description && (
-            <span className="text-gray-500 text-sm">{record.description}</span>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: '价格/库存',
-      key: 'priceAndStock',
-      render: (_, record: ProductSelection) => (
-        <Space direction="vertical" size={0}>
-          <span style={{ fontWeight: 'bold' }}>¥{record.price}</span>
-          <span style={{ color: '#666' }}>库存: {record.stock}</span>
-        </Space>
-      ),
-    },
-    {
-      title: '分配状态',
-      key: 'status',
-      width: 120,
-      render: (_, record: ProductSelection) => {
-        const isDistributed = record.status === 'distributed';
-        return (
-          <Space direction="vertical" size={0}>
-            <Tag color={isDistributed ? 'success' : 'blue'}>
-              {isDistributed ? '已分配' : '待分配'}
-            </Tag>
-            {isDistributed && record.distributedAt && (
-              <span className="text-gray-500 text-xs">
-                {new Date(record.distributedAt).toLocaleString()}
-              </span>
-            )}
-          </Space>
-        );
-      },
-    },
-    {
-      title: '分配信息',
-      key: 'distributionInfo',
-      render: (_, record: ProductSelection) => {
-        if (record.status !== 'distributed') {
-          return <span className="text-gray-400">-</span>;
-        }
-
-        // 获取该选品相关的所有商品
-        const relatedProducts = products.filter(p => p.selectionId === record.id);
-        const storeNames = relatedProducts.map(p => {
-          const store = storeAccounts.find(s => s.id === p.storeId);
-          return store?.name || p.storeId;
-        });
-
-        return (
-          <Space direction="vertical" size={0}>
-            <span>已分配到 {storeNames.length} 个店铺</span>
-            <span className="text-gray-500 text-xs">
-              {storeNames.join(', ')}
-            </span>
-          </Space>
-        );
-      },
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 180,
-      render: (time: string) => new Date(time).toLocaleString(),
-    }
-  ];
-
-  // 表格选择配置
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (selectedKeys: string[], selectedRows: ProductSelection[]) => {
-      setSelectedRowKeys(selectedKeys);
-      setSelectedSelections(selectedRows);
-    }
-  };
-
-  const filteredData = getFilteredSelections();
-
   return (
     <div className="p-6 space-y-4">
       <Card>
         <div className="flex justify-between items-center mb-4">
-          <Button
-            type="primary"
-            icon={<ShopOutlined />}
-            onClick={() => {
-              if (selectedRowKeys.length === 0) {
-                message.warning('请先选择要分配的选品');
-                return;
-              }
-              setIsModalVisible(true);
-            }}
-            disabled={selectedRowKeys.length === 0}
-          >
-            分配选品 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
-          </Button>
+          <Space>
+            <Button
+              type="primary"
+              icon={<ShopOutlined />}
+              onClick={() => {
+                if (selectedRowKeys.length === 0) {
+                  message.warning('请先选择要分配的选品');
+                  return;
+                }
+                setIsModalVisible(true);
+              }}
+              disabled={selectedRowKeys.length === 0}
+            >
+              分配选品 {selectedRowKeys.length > 0 && `(${selectedRowKeys.length})`}
+            </Button>
+            <Dropdown 
+              menu={{ items: batchOperationItems }} 
+              disabled={selectedRowKeys.length === 0}
+            >
+              <Button>
+                <Space>
+                  批量操作
+                  <DownOutlined />
+                </Space>
+              </Button>
+            </Dropdown>
+          </Space>
           <Search
             placeholder="搜索商品名称/分类"
             style={{ width: 300 }}

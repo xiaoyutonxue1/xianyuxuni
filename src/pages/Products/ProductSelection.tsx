@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, Alert, Empty, message, Typography } from 'antd';
-import { ShopOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, Alert, Empty, message, Typography, Dropdown } from 'antd';
+import { ShopOutlined, DownOutlined, DeleteOutlined, ExportOutlined } from '@ant-design/icons';
 import type { ProductSelection } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
@@ -21,7 +21,61 @@ const ProductSelectionPage: React.FC = () => {
   // 使用 store
   const { storeAccounts, storeGroups } = useSettingsStore();
   const { addProducts } = useProductStore();
-  const { selections, updateSelectionStatus } = useSelectionStore();
+  const { selections, updateSelectionStatus, deleteSelections } = useSelectionStore();
+
+  // 批量删除选品
+  const handleBatchDelete = () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个选品吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await deleteSelections(selectedRowKeys as string[]);
+          message.success('删除成功');
+          setSelectedRowKeys([]);
+          setSelectedSelections([]);
+        } catch (error) {
+          message.error('删除失败');
+        }
+      }
+    });
+  };
+
+  // 批量导出选品
+  const handleBatchExport = () => {
+    try {
+      // 准备导出数据
+      const exportData = selectedSelections.map(selection => ({
+        名称: selection.name,
+        分类: selection.category,
+        价格: selection.price,
+        库存: selection.stock,
+        创建时间: new Date(selection.createdAt).toLocaleString(),
+        状态: selection.status === 'pending' ? '待分配' : '已分配',
+        来源: selection.source === 'manual' ? '手动创建' : '爬虫抓取'
+      }));
+
+      // 转换为CSV
+      const headers = Object.keys(exportData[0]);
+      const csv = [
+        headers.join(','),
+        ...exportData.map(row => headers.map(header => row[header]).join(','))
+      ].join('\n');
+
+      // 创建下载
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `选品数据_${new Date().toLocaleDateString()}.csv`;
+      link.click();
+      
+      message.success('导出成功');
+    } catch (error) {
+      message.error('导出失败');
+    }
+  };
 
   // 过滤选品数据
   const getFilteredSelections = () => {
@@ -149,6 +203,13 @@ const ProductSelectionPage: React.FC = () => {
       onFilter: (value, record) => record.source === value,
     },
     {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      sorter: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      render: (createdAt: string) => new Date(createdAt).toLocaleString(),
+    },
+    {
       title: '状态',
       key: 'status',
       render: (_, record) => {
@@ -198,6 +259,22 @@ const ProductSelectionPage: React.FC = () => {
     }),
   };
 
+  // 批量操作菜单
+  const batchOperationItems = [
+    {
+      key: 'delete',
+      label: '批量删除',
+      icon: <DeleteOutlined />,
+      onClick: handleBatchDelete,
+    },
+    {
+      key: 'export',
+      label: '批量导出',
+      icon: <ExportOutlined />,
+      onClick: handleBatchExport,
+    },
+  ];
+
   return (
     <div className="space-y-4">
       <Card>
@@ -217,6 +294,17 @@ const ProductSelectionPage: React.FC = () => {
             >
               批量分配
             </Button>
+            <Dropdown 
+              menu={{ items: batchOperationItems }} 
+              disabled={selectedRowKeys.length === 0}
+            >
+              <Button>
+                <Space>
+                  批量操作
+                  <DownOutlined />
+                </Space>
+              </Button>
+            </Dropdown>
           </Space>
           <Search
             placeholder="搜索选品名称/分类"

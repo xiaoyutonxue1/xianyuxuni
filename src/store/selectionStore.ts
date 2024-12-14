@@ -2,67 +2,33 @@ import { create } from 'zustand';
 import type { ProductSelection } from '../types/product';
 
 interface SelectionStore {
-  // 选品数据
   selections: ProductSelection[];
-  
-  // 操作方法
-  setSelections: (selections: ProductSelection[]) => void;
   addSelection: (selection: ProductSelection) => void;
-  updateSelection: (selection: ProductSelection) => void;
-  removeSelection: (selectionId: string) => void;
-  updateSelectionStatus: (selectionId: string, status: ProductSelection['status'], distributedAt?: string) => void;
-  
-  // 查询方法
-  getPendingSelections: () => ProductSelection[];
-  getDistributedSelections: () => ProductSelection[];
-  getSelectionById: (id: string) => ProductSelection | undefined;
+  updateSelectionStatus: (id: string, status: ProductSelection['status'], distributedAt?: string) => void;
+  deleteSelections: (ids: string[]) => void;
 }
 
-const useSelectionStore = create<SelectionStore>((set, get) => ({
+const useSelectionStore = create<SelectionStore>((set) => ({
   selections: [],
   
-  setSelections: (selections) => set({ selections }),
+  addSelection: (selection) => 
+    set((state) => ({
+      selections: [...state.selections, selection]
+    })),
   
-  addSelection: (selection) => set((state) => ({
-    selections: [...state.selections, selection]
-  })),
+  updateSelectionStatus: (id, status, distributedAt) =>
+    set((state) => ({
+      selections: state.selections.map(selection =>
+        selection.id === id
+          ? { ...selection, status, distributedAt }
+          : selection
+      )
+    })),
   
-  updateSelection: (selection) => set((state) => ({
-    selections: state.selections.map((s) => 
-      s.id === selection.id ? { ...selection, lastUpdated: new Date().toISOString() } : s
-    )
-  })),
-  
-  removeSelection: (selectionId) => set((state) => ({
-    selections: state.selections.filter((s) => s.id !== selectionId)
-  })),
-
-  updateSelectionStatus: (selectionId, status, distributedAt) => set((state) => ({
-    selections: state.selections.map((s) =>
-      s.id === selectionId ? { 
-        ...s, 
-        status, 
-        distributedAt: status === 'distributed' ? (distributedAt || new Date().toISOString()) : undefined,
-        lastUpdated: new Date().toISOString() 
-      } : s
-    )
-  })),
-
-  // 查询方法实现
-  getPendingSelections: () => {
-    const state = get();
-    return state.selections.filter(s => s.status === 'pending');
-  },
-
-  getDistributedSelections: () => {
-    const state = get();
-    return state.selections.filter(s => s.status === 'distributed');
-  },
-
-  getSelectionById: (id) => {
-    const state = get();
-    return state.selections.find(s => s.id === id);
-  },
+  deleteSelections: (ids) =>
+    set((state) => ({
+      selections: state.selections.filter(selection => !ids.includes(selection.id))
+    }))
 }));
 
 export default useSelectionStore; 
