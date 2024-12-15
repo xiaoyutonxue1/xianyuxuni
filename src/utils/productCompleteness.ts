@@ -1,3 +1,5 @@
+import type { ProductSelection } from '../types/product';
+
 // 计算商品完整度
 export const calculateCompleteness = (record: any) => {
   let completedFields = 0;
@@ -19,6 +21,12 @@ export const calculateCompleteness = (record: any) => {
     baseFields.forEach(field => {
       if (record[field]) completedFields++;
     });
+
+    // 检查公共图片
+    totalFields += 1; // 增加公共图片字段
+    if (record.commonImages && record.commonImages.length > 0) {
+      completedFields++;
+    }
 
     // 检查销售信息
     if (record.hasSpecs) {
@@ -58,6 +66,11 @@ export const getMissingFields = (record: any) => {
     // 检查基础信息
     if (!record.name) missingFields.push('商品名称');
     if (!record.category) missingFields.push('商品分类');
+    
+    // 检查公共图片
+    if (!record.commonImages || record.commonImages.length === 0) {
+      missingFields.push('公共图片');
+    }
 
     // 检查销售信息
     if (record.hasSpecs) {

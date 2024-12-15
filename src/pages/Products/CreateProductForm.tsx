@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, InputNumber, Button, Switch, Progress, Tooltip, Space, message } from 'antd';
-import { InfoCircleFilled, CheckCircleFilled } from '@ant-design/icons';
+import { Form, Input, Select, InputNumber, Button, Switch, Progress, Tooltip, Space, message, Upload, Alert } from 'antd';
+import { InfoCircleFilled, CheckCircleFilled, PlusOutlined } from '@ant-design/icons';
 import type { CreateProductRequest } from '../../types/product';
 import { categoryOptions, deliveryMethods } from '../../utils/constants';
 import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
 import useSelectionStore from '../../store/selectionStore';
 import useSettingsStore from '../../store/settingsStore';
+import type { UploadFile } from 'antd/es/upload/interface';
 
 interface CreateProductFormProps {
   onSubmit: (values: CreateProductRequest) => Promise<void>;
@@ -23,12 +24,13 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
   const [addMode, setAddMode] = useState<'manual' | 'crawler'>('manual');
   const [completeness, setCompleteness] = useState(0);
   const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
 
   // 使用 selectionStore
   const { addSelection } = useSelectionStore();
   const { productSettings } = useSettingsStore();
 
-  // 获取当前发货方式的配置
+  // 获取当前发货式的配置
   const getDeliveryMethodConfig = (methodValue: string) => {
     return deliveryMethods.find(method => method.value === methodValue);
   };
@@ -122,12 +124,68 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
     updateCompleteness();
   }, [hasSpecs, addMode]);
 
-  // 处理表单提交
+  // 处理图片上传前的检查
+  const beforeUpload = (file: File) => {
+    const isImage = file.type.startsWith('image/');
+    if (!isImage) {
+      message.error('只能上传图片文件！');
+      return false;
+    }
+    const isLt5M = file.size / 1024 / 1024 < 5;
+    if (!isLt5M) {
+      message.error('图片必须小于5MB！');
+      return false;
+    }
+    return true;
+  };
+
+  // 图片上传配置
+  const uploadProps = {
+    listType: 'picture' as const,
+    fileList,
+    onChange: ({ fileList: newFileList }) => {
+      setFileList(newFileList);
+      updateCompleteness();
+    },
+    beforeUpload,
+    onPreview: async (file: UploadFile) => {
+      let src = file.url;
+      if (!src && file.originFileObj) {
+        src = await new Promise(resolve => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file.originFileObj as Blob);
+          reader.onload = () => resolve(reader.result as string);
+        });
+      }
+      if (src) {
+        const image = new Image();
+        image.src = src;
+        const imgWindow = window.open(src);
+        imgWindow?.document.write(image.outerHTML);
+      }
+    }
+  };
+
+  // 修改提交函数
   const handleSubmit = async (values: any) => {
     try {
-      await onSubmit(values);
+      // 添加公共图片数据
+      const submitData = {
+        ...values,
+        commonImages: fileList.map(file => ({
+          id: file.uid,
+          url: file.url || file.thumbUrl || '',
+          type: 'common' as const,
+          sort: fileList.indexOf(file),
+          createdAt: new Date().toISOString(),
+          size: file.size
+        }))
+      };
+
+      await onSubmit(submitData);
       message.success('创建成功');
       form.resetFields();
+      setFileList([]);
       updateCompleteness();
     } catch (error) {
       message.error('创建失败');
@@ -250,14 +308,62 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
               label={<span className="text-red-500">商品链接 *</span>}
               rules={[{ required: true, message: '请输入商品链接' }]}
             >
-              <Input placeholder="请输入商品链接" />
+              <Input.TextArea
+                placeholder="请输入商品链接"
+                rows={3}
+              />
             </Form.Item>
           )}
         </div>
 
-        {/* 手动模式特有的表单项 */}
-        {addMode === 'manual' && (
+        {addMode === 'manual' ? (
           <>
+            {/* 公共图片上传 */}
+            <Form.Item
+              label={
+                <Space>
+                  公共图片
+                  <Tooltip title="这些图片会同步到所有店铺，可以拖拽调整顺序，最多上传27张">
+                    <InfoCircleFilled style={{ color: '#1890ff' }} />
+                  </Tooltip>
+                </Space>
+              }
+            >
+              <div className="bg-gray-50/50 p-4 rounded-lg border border-gray-100">
+                <Upload
+                  {...uploadProps}
+                  multiple
+                  className="upload-list-compact"
+                  maxCount={27}
+                  listType="picture-card"
+                  showUploadList={{
+                    showPreviewIcon: true,
+                    showRemoveIcon: true,
+                    showDownloadIcon: false
+                  }}
+                  beforeUpload={(file, fileList) => {
+                    if (fileList.length + 1 > 27) {
+                      message.error('最多只能上传27张图片');
+                      return false;
+                    }
+                    return beforeUpload(file);
+                  }}
+                >
+                  {fileList.length >= 27 ? null : (
+                    <div className="flex flex-col items-center justify-center w-full h-full">
+                      <PlusOutlined className="text-lg mb-1" />
+                      <span className="text-xs">上传图片</span>
+                    </div>
+                  )}
+                </Upload>
+                {fileList.length > 0 && (
+                  <div className="mt-2 text-xs text-gray-400">
+                    已上传 {fileList.length}/27 张
+                  </div>
+                )}
+              </div>
+            </Form.Item>
+
             {/* 规格设置 */}
             <div className="mb-4">
               <Form.Item label="规格设置" className="mb-0">
@@ -466,6 +572,27 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                 )}
               </Form.List>
             )}
+          </>
+        ) : (
+          <>
+            <Form.Item
+              name="productUrl"
+              label={<span className="text-red-500">商品链接 *</span>}
+              rules={[{ required: true, message: '请输入商品链接' }]}
+            >
+              <Input.TextArea
+                placeholder="请输入商品链接"
+                rows={3}
+              />
+            </Form.Item>
+
+            <Alert
+              message="爬虫功能开中"
+              description="目前仅支持手动添加商品，爬虫功能即将上线，敬请期待。"
+              type="info"
+              showIcon
+              className="mb-4"
+            />
           </>
         )}
 

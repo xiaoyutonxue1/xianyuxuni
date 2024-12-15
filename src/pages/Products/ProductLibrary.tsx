@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, Typography } from 'antd';
+import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, Typography, Select, DatePicker } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { 
   PlusOutlined, 
@@ -15,6 +15,7 @@ import {
   CheckCircleFilled,
   CloseCircleFilled,
   SyncOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
 import useSelectionStore from '../../store/selectionStore';
@@ -165,7 +166,7 @@ const ProductLibrary: React.FC = () => {
         ? { ...item, status: 'inactive' as const }
         : item
     );
-    // TODO: 实现批量更新状态的功能
+    // TODO: 实现批量��新状态的功能
     setSelectedRowKeys([]);
     message.success('批量下架成功');
   };
@@ -314,6 +315,62 @@ const ProductLibrary: React.FC = () => {
       width: 180,
       render: (text: string) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
       sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
+    },
+    {
+      title: '完整度',
+      dataIndex: 'completeness',
+      key: 'completeness',
+      width: 200,
+      render: (_, record: Product) => {
+        const completeness = calculateCompleteness(record);
+        const missingFields = getMissingFields(record);
+        return (
+          <Tooltip
+            title={
+              missingFields.length > 0 ? (
+                <div className="p-2">
+                  <div className="text-base text-red-500 mb-2">
+                    未填写项目
+                  </div>
+                  <div className="bg-red-50 rounded p-2">
+                    {missingFields.map((field, index) => (
+                      <div key={index} className="text-red-400 py-0.5">
+                        • {field}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null
+            }
+            overlayStyle={{ 
+              maxWidth: '400px',
+              borderRadius: '8px',
+            }}
+            overlayInnerStyle={{
+              borderRadius: '8px',
+            }}
+            color="#fff"
+            placement="left"
+          >
+            <div className="cursor-pointer">
+              <Progress
+                percent={completeness}
+                size="small"
+                format={(percent) => (
+                  <span style={{ fontSize: '12px' }}>
+                    {percent}%
+                  </span>
+                )}
+                strokeColor={{
+                  '0%': '#108ee9',
+                  '100%': '#87d068',
+                }}
+                style={{ margin: 0 }}
+              />
+            </div>
+          </Tooltip>
+        );
+      },
     },
     {
       title: '操作',

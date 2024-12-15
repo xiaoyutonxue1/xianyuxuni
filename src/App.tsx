@@ -1,4 +1,5 @@
 import React from 'react';
+import './styles/upload.css';
 import { RouterProvider } from 'react-router-dom';
 import router from './router';
 

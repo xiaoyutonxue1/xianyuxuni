@@ -1,9 +1,19 @@
 # 数据库设计文档
 
 ## 版本
-v0.2.2
+v0.2.3
 
 ## 更新历史
+
+### v0.2.3 (2024-12-16)
+- 优化选品数据结构
+  - 添加commonImages字段，用于存储公共图片信息
+  - 完善图片数据的存储格式
+  - 优化图片排序和管理机制
+- 改进数据完整度计算
+  - 将公共图片纳入完整度计算
+  - 优化完整度检查机制
+  - 完善数据验证规则
 
 ### v0.2.2 (2024-12-14)
 - 优化选品数据结构
@@ -51,7 +61,7 @@ v0.2.2
 | price | number | 是 | 选品价格 |
 | stock | number | 是 | 选品库存 |
 | status | enum | 是 | 选品状态(pending/distributed) |
-| source | enum | 是 | 创建方式(manual/crawler) |
+| source | enum | ��� | 创建方式(manual/crawler) |
 | hasSpecs | boolean | 是 | 是否有多规格 |
 | saleInfo | object | 否 | 销售信息(单规格) |
 | specs | array | 否 | 规格信息(多规格) |
