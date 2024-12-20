@@ -1,7 +1,7 @@
 # 数据库设计文档
 
 ## 版本
-v0.2.5
+v2.7.0
 
 ## 数据同步机制
 ### 选品分配与商品数据同步
@@ -33,6 +33,7 @@ interface Selection {
   saleInfo?: ProductSaleInfo; // 销售信息
   distributedAt?: string;    // 分配时间
   lastUpdated: string;       // 最后更新时间
+  coverImage?: string;       // 商品头图
 }
 ```
 
@@ -48,6 +49,7 @@ interface Product extends Selection {
   distributedAt: string;   // 分配时间
   publishedAt?: string;    // 发布时间
   lastUpdated: string;     // 最后更新时间
+  coverImage?: string;     // 商品头图
 }
 ```
 
