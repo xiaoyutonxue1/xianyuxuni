@@ -12,6 +12,7 @@ interface ProductStore {
   removeProduct: (productId: string) => void;
   setSelections: (selections: ProductSelection[]) => void;
   updateSelection: (selection: ProductSelection) => void;
+  addSelection: (selection: ProductSelection) => void;
 }
 
 const useProductStore = create<ProductStore>((set) => ({
@@ -24,7 +25,11 @@ const useProductStore = create<ProductStore>((set) => ({
   
   updateProduct: (product) => set((state) => ({
     products: state.products.map((p) => 
-      p.id === product.id ? product : p
+      p.id === product.id ? {
+        ...p,
+        ...product,
+        lastUpdated: new Date().toISOString(),
+      } : p
     )
   })),
   
@@ -36,8 +41,16 @@ const useProductStore = create<ProductStore>((set) => ({
   
   updateSelection: (selection) => set((state) => ({
     selections: state.selections.map((s) =>
-      s.id === selection.id ? selection : s
+      s.id === selection.id ? {
+        ...s,
+        ...selection,
+        lastUpdated: new Date().toISOString(),
+      } : s
     )
+  })),
+
+  addSelection: (selection) => set((state) => ({
+    selections: [...state.selections, selection]
   })),
 }));
 

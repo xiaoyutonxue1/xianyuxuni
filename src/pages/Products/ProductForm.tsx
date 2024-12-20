@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, InputNumber, Button, Modal, Switch, Progress, Space } from 'antd';
+import { Form, Input, Select, InputNumber, Button, Modal, Switch, Progress, Space, Upload } from 'antd';
 import type { ProductSelection, CreateSelectionRequest } from '../../types/product';
+import { PlusOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
 
@@ -31,17 +32,19 @@ interface ProductFormProps {
   onSubmit: (values: CreateSelectionRequest) => Promise<void>;
   loading?: boolean;
   onCancel: () => void;
+  mode: 'create' | 'edit';
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({
   initialData,
   onSubmit,
   loading = false,
-  onCancel
+  onCancel,
+  mode
 }) => {
   const [form] = Form.useForm();
   const [hasSpecs, setHasSpecs] = useState(initialData?.hasSpecs || false);
-  const [addMode, setAddMode] = useState<'manual' | 'crawler'>('manual');
+  const [addMode, setAddMode] = useState<'manual' | 'crawler'>(initialData?.source || 'manual');
   const [progress, setProgress] = useState(0);
 
   // 计算表单填写进度
@@ -144,26 +147,33 @@ const ProductForm: React.FC<ProductFormProps> = ({
         method: addMode,
       };
 
+      // 处理图片
+      if (values.coverImage) {
+        if (Array.isArray(values.coverImage)) {
+          submitData.coverImage = values.coverImage[0]?.thumbUrl || values.coverImage[0]?.url;
+        } else if (typeof values.coverImage === 'string') {
+          submitData.coverImage = values.coverImage;
+        }
+      }
+
       if (hasSpecs) {
         // 多规格模式：使用specs字段
-        delete submitData.price;
-        delete submitData.stock;
-        delete submitData.deliveryMethod;
-        delete submitData.deliveryInfo;
+        submitData.specs = values.specs?.map((spec: any) => ({
+          ...spec,
+          deliveryMethod: spec.deliveryMethod,
+          deliveryInfo: spec.deliveryInfo,
+        }));
       } else {
-        // 单规格模式：构造saleInfo
-        submitData.saleInfo = {
-          price: values.price,
-          stock: values.stock,
-          deliveryMethod: values.deliveryMethod,
-          deliveryInfo: values.deliveryInfo,
-          originalPrice: values.price // 设置原价等于售价
-        };
-        delete submitData.price;
-        delete submitData.stock;
-        delete submitData.deliveryMethod;
-        delete submitData.deliveryInfo;
-        delete submitData.specs;
+        // 单规格模式：保留基本字段
+        submitData.price = values.price;
+        submitData.stock = values.stock;
+        submitData.deliveryMethod = values.deliveryMethod;
+        submitData.deliveryInfo = values.deliveryInfo;
+      }
+
+      // 如果是编辑模式，添加 id
+      if (mode === 'edit' && initialData) {
+        submitData.id = initialData.id;
       }
 
       await onSubmit(submitData);
@@ -192,7 +202,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   return (
     <Modal
-      title="新增商品"
+      title={mode === 'create' ? "新增商品" : "编辑商品"}
       open={true}
       onCancel={onCancel}
       footer={null}
@@ -264,18 +274,54 @@ const ProductForm: React.FC<ProductFormProps> = ({
             </Form.Item>
 
             {addMode === 'manual' ? (
-              <Form.Item
-                name="category"
-                label="商品分类"
-              >
-                <Select placeholder="请选择商品分类">
-                  {categoryOptions.map(option => (
-                    <Option key={option.value} value={option.value}>
-                      {option.label}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
+              <>
+                <Form.Item
+                  name="category"
+                  label="商品分类"
+                >
+                  <Select placeholder="请选择商品分类">
+                    {categoryOptions.map(option => (
+                      <Option key={option.value} value={option.value}>
+                        {option.label}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+
+                <Form.Item
+                  name="coverImage"
+                  label="商品图片"
+                  valuePropName="fileList"
+                  getValueFromEvent={(e) => {
+                    if (Array.isArray(e)) {
+                      return e;
+                    }
+                    return e?.fileList;
+                  }}
+                >
+                  <Upload
+                    name="coverImage"
+                    listType="picture-card"
+                    showUploadList={true}
+                    maxCount={1}
+                    beforeUpload={(file) => {
+                      const reader = new FileReader();
+                      reader.readAsDataURL(file);
+                      reader.onload = () => {
+                        form.setFieldsValue({
+                          coverImage: reader.result
+                        });
+                      };
+                      return false;
+                    }}
+                  >
+                    <div>
+                      <PlusOutlined />
+                      <div style={{ marginTop: 8 }}>上传图片</div>
+                    </div>
+                  </Upload>
+                </Form.Item>
+              </>
             ) : (
               <Form.Item
                 name="productUrl"
@@ -364,7 +410,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 </div>
               )}
 
-              {/* ���规格表单 */}
+              {/* 多规格表单 */}
               {hasSpecs && (
                 <Form.List
                   name="specs"

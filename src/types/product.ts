@@ -55,6 +55,7 @@ export interface ProductSelection {
   errorMessage?: string;
   completeness?: number;
   distributedAt?: string;
+  coverImage?: string;
 }
 
 // 商品状态类型
@@ -65,8 +66,33 @@ export type ProductStatus =
   | 'failed'     // 发布失败
   | 'offline';   // 已下架
 
+// 商品分配状态
+export type DistributeStatus = 
+  | 'draft'      // 草稿
+  | 'pending'    // 待发布
+  | 'published'  // 已发布
+  | 'failed'     // 发布失败
+  | 'offline';   // 已下架
+
 // 完整的商品信息(从选品分配后生成)
-export interface Product extends ProductSelection {
+export interface Product {
+  id: string;
+  name: string;
+  category: ProductCategory;
+  description: string;
+  keywords?: string[];
+  remark?: string;
+  price: number;
+  stock: number;
+  createdAt: string;
+  source: 'manual' | 'crawler';
+  hasSpecs: boolean;
+  specs?: ProductSpec[];
+  deliveryMethod?: DeliveryMethod;
+  deliveryInfo?: string;
+  productUrl?: string;
+  errorMessage?: string;
+  completeness?: number;
   selectionId: string;           // 关联的选品ID
   storeId: string;              // 关联的店铺ID
   templateId: string;           // 使用的模板ID
@@ -76,12 +102,27 @@ export interface Product extends ProductSelection {
   distributedAt: string;       // 分配时间
   publishedAt?: string;        // 发布时间
   lastUpdated: string;         // 最后更新时间
+  coverImage?: string;         // 商品头图
 }
 
 // 创建选品请求
-export interface CreateSelectionRequest extends Omit<ProductSelection, 'id' | 'createdAt' | 'status'> {
+export interface CreateSelectionRequest {
+  id?: string;  // 编辑时使用
+  name: string;
+  category: ProductCategory;
+  description: string;
+  keywords?: string[];
+  remark?: string;
+  price: number;
+  stock: number;
+  source: 'manual' | 'crawler';
+  hasSpecs: boolean;
+  specs?: Omit<ProductSpec, 'id'>[];
+  deliveryMethod?: DeliveryMethod;
+  deliveryInfo?: string;
+  productUrl?: string;
+  coverImage?: string;
   method: 'manual' | 'crawler';
-  sourceUrl?: string;
 }
 
 // 分配选品请求
@@ -111,24 +152,7 @@ export interface DistributeInfo {
   distributedContent?: string;  // 使用模板后的文案
 }
 
-// 商品分配状态
-export type DistributeStatus = 
-  | 'draft'      // 草稿
-  | 'pending'    // 待发布
-  | 'published'  // 已发布
-  | 'failed'     // 发布失败
-  | 'offline';   // 已下架
-
-// 创建商品请求
-export interface CreateProductRequest extends ProductBase, ProductMedia {
-  hasSpecs: boolean;
-  specs?: Omit<ProductSpec, 'id'>[];
-  saleInfo?: ProductSaleInfo;
-  method: 'manual' | 'crawler';
-  sourceUrl?: string;
-}
-
 // 更新商品请求
-export interface UpdateProductRequest extends Partial<CreateProductRequest> {
+export interface UpdateProductRequest extends Partial<CreateSelectionRequest> {
   id: string;
 } 

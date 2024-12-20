@@ -1,14 +1,44 @@
 import React, { useState } from 'react';
 import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, Alert, Empty, message, Typography, Dropdown } from 'antd';
 import { ShopOutlined, DownOutlined, DeleteOutlined, ExportOutlined } from '@ant-design/icons';
-import type { ProductSelection } from '../../types/product';
+import type { ProductSelection, ProductSelectionStatus, Product, CreateSelectionRequest } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
 import useSelectionStore from '../../store/selectionStore';
 import type { ColumnsType } from 'antd/es/table/interface';
+import ProductForm from './ProductForm';
 
 const { Search } = Input;
 const { Text } = Typography;
+
+// 状态标签配置
+const statusConfig: Record<ProductSelectionStatus, { color: string; text: string }> = {
+  pending: {
+    color: 'gold',
+    text: '待分配'
+  },
+  distributed: {
+    color: 'green',
+    text: '已分配'
+  },
+  inactive: {
+    color: 'red',
+    text: '已下架'
+  }
+};
+
+// 渲染状态标签
+const renderStatusTag = (status: ProductSelectionStatus) => {
+  const config = statusConfig[status] || {
+    color: 'default',
+    text: '未知状态'
+  };
+  return (
+    <Tag color={config.color}>
+      {config.text}
+    </Tag>
+  );
+};
 
 const ProductSelectionPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -17,11 +47,13 @@ const ProductSelectionPage: React.FC = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
+  const [selectedSelection, setSelectedSelection] = useState<ProductSelection | null>(null);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   
   // 使用 store
   const { storeAccounts, storeGroups } = useSettingsStore();
   const { addProducts } = useProductStore();
-  const { selections, updateSelectionStatus, deleteSelections } = useSelectionStore();
+  const { selections, updateSelectionStatus, deleteSelections, updateSelection } = useSelectionStore();
 
   // 批量删除选品
   const handleBatchDelete = () => {
@@ -48,21 +80,21 @@ const ProductSelectionPage: React.FC = () => {
     try {
       // 准备导出数据
       const exportData = selectedSelections.map(selection => ({
-        名称: selection.name,
-        分类: selection.category,
-        价格: selection.price,
-        库存: selection.stock,
-        创建时间: new Date(selection.createdAt).toLocaleString(),
-        状态: selection.status === 'pending' ? '待分配' : '已分配',
-        来源: selection.source === 'manual' ? '手动创建' : '爬虫抓取'
+        '名称': selection.name,
+        '分类': selection.category,
+        '价格': selection.price,
+        '库存': selection.stock,
+        '创建时间': new Date(selection.createdAt).toLocaleString(),
+        '状态': selection.status === 'pending' ? '待分配' : '已分配',
+        '来源': selection.source === 'manual' ? '手动创建' : '爬虫抓取'
       }));
 
       // 转换为CSV
       const headers = Object.keys(exportData[0]);
-      const csv = [
-        headers.join(','),
-        ...exportData.map(row => headers.map(header => row[header]).join(','))
-      ].join('\n');
+      const csvRows = exportData.map(row => 
+        headers.map(header => String(row[header as keyof typeof row])).join(',')
+      );
+      const csv = [headers.join(','), ...csvRows].join('\n');
 
       // 创建下载
       const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -96,7 +128,7 @@ const ProductSelectionPage: React.FC = () => {
       const { stores } = values;
 
       // 处理店铺组,展开所有店铺ID
-      const selectedStores = stores.map((value: string) => {
+      const selectedStores = (stores as string[]).map((value: string) => {
         if (value.startsWith('group:')) {
           const groupId = value.replace('group:', '');
           const group = storeGroups.find(g => g.id === groupId);
@@ -109,11 +141,11 @@ const ProductSelectionPage: React.FC = () => {
       const uniqueStores = [...new Set(selectedStores)];
       
       // 为每个选中的选品创建商品
-      const newProducts = [];
+      const newProducts: Product[] = [];
       
       // 处理每个选中的选品
       for (const selectionId of selectedRowKeys) {
-        const selection = selections.find(s => s.id === selectionId);
+        const selection = selections.find(s => s.id === String(selectionId));
         if (!selection) continue;
 
         // 为每个店铺创建商品
@@ -126,9 +158,24 @@ const ProductSelectionPage: React.FC = () => {
           }
 
           // 创建新商品
-          const newProduct = {
-            ...selection,
+          const newProduct: Omit<Product, 'method'> = {
             id: `${selection.id}-${storeId}`,
+            name: selection.name,
+            category: selection.category,
+            description: selection.description,
+            keywords: selection.keywords,
+            remark: selection.remark,
+            price: selection.price,
+            stock: selection.stock,
+            createdAt: selection.createdAt,
+            source: selection.source,
+            hasSpecs: selection.hasSpecs,
+            specs: selection.specs,
+            deliveryMethod: selection.deliveryMethod,
+            deliveryInfo: selection.deliveryInfo,
+            productUrl: selection.productUrl,
+            errorMessage: selection.errorMessage,
+            completeness: selection.completeness,
             selectionId: selection.id,
             storeId,
             templateId: defaultTemplate.id,
@@ -136,13 +183,15 @@ const ProductSelectionPage: React.FC = () => {
             distributedAt: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
             distributedTitle: defaultTemplate.title.replace('{title}', selection.name),
-            distributedContent: defaultTemplate.description.replace('{description}', selection.description || '')
+            distributedContent: defaultTemplate.description.replace('{description}', selection.description || ''),
+            coverImage: selection.coverImage,
           };
-          newProducts.push(newProduct);
+          
+          newProducts.push(newProduct as Product);
         }
 
         // 更新选品状态
-        updateSelectionStatus(selectionId, 'distributed');
+        updateSelectionStatus(String(selectionId), 'distributed');
       }
 
       // 保存商品数据
@@ -160,6 +209,74 @@ const ProductSelectionPage: React.FC = () => {
         message.error('分配失败');
       }
     }
+  };
+
+  // 处理编辑
+  const handleEdit = (record: ProductSelection) => {
+    setSelectedSelection(record);
+    setIsEditModalVisible(true);
+  };
+
+  // 处理编辑表单提交
+  const handleEditSubmit = async (values: CreateSelectionRequest) => {
+    try {
+      if (!selectedSelection || !values.id) {
+        throw new Error('缺少选品ID');
+      }
+
+      // 更新选品数据
+      const updatedSelection: ProductSelection = {
+        id: values.id,
+        name: values.name,
+        category: values.category,
+        description: values.description,
+        keywords: values.keywords,
+        remark: values.remark,
+        price: values.price,
+        stock: values.stock,
+        createdAt: selectedSelection.createdAt,
+        status: selectedSelection.status,
+        source: values.source,
+        hasSpecs: values.hasSpecs,
+        specs: values.specs ? values.specs.map(spec => ({
+          id: `spec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: spec.name,
+          price: spec.price,
+          stock: spec.stock,
+          deliveryMethod: spec.deliveryMethod,
+          deliveryInfo: spec.deliveryInfo || '',
+        })) : undefined,
+        deliveryMethod: values.deliveryMethod,
+        deliveryInfo: values.deliveryInfo,
+        productUrl: values.productUrl,
+        coverImage: values.coverImage,
+      };
+
+      // 使用 updateSelection 更新数据
+      updateSelection(updatedSelection);
+      message.success('选品更新成功');
+      setIsEditModalVisible(false);
+      setSelectedSelection(null);
+    } catch (error) {
+      message.error('操作失败');
+    }
+  };
+
+  // 编辑弹窗
+  const renderEditModal = () => {
+    if (!selectedSelection) return null;
+
+    return (
+      <ProductForm
+        mode="edit"
+        initialData={selectedSelection}
+        onSubmit={handleEditSubmit}
+        onCancel={() => {
+          setIsEditModalVisible(false);
+          setSelectedSelection(null);
+        }}
+      />
+    );
   };
 
   const columns: ColumnsType<ProductSelection> = [
@@ -193,7 +310,7 @@ const ProductSelectionPage: React.FC = () => {
       key: 'source',
       render: (_, record) => (
         <Tag color={record.source === 'manual' ? 'blue' : 'purple'}>
-          {record.source === 'manual' ? '手动创建' : '爬虫抓取'}
+          {record.source === 'manual' ? '手动创建' : '爬虫���取'}
         </Tag>
       ),
       filters: [
@@ -212,17 +329,11 @@ const ProductSelectionPage: React.FC = () => {
     {
       title: '状态',
       key: 'status',
-      render: (_, record) => {
-        const statusMap = {
-          pending: { color: 'processing', text: '待分配' },
-          distributed: { color: 'success', text: '已分配' },
-        };
-        const { color, text } = statusMap[record.status];
-        return <Tag color={color}>{text}</Tag>;
-      },
+      render: (_, record) => renderStatusTag(record.status),
       filters: [
         { text: '待分配', value: 'pending' },
         { text: '已分配', value: 'distributed' },
+        { text: '已下架', value: 'inactive' },
       ],
       onFilter: (value, record) => record.status === value,
     },
@@ -254,9 +365,6 @@ const ProductSelectionPage: React.FC = () => {
       setSelectedRowKeys(newSelectedRowKeys);
       setSelectedSelections(selectedRows);
     },
-    getCheckboxProps: (record: ProductSelection) => ({
-      disabled: record.status !== 'pending', // 只允许选择待分配的选品
-    }),
   };
 
   // 批量操作菜单
@@ -341,8 +449,8 @@ const ProductSelectionPage: React.FC = () => {
       >
         <div className="mb-4">
           <Alert
-            message={`已选择 ${selectedSelections.length} 个选品`}
-            description="选中的选品将被分配到所选店铺，每个店铺将使用其默认模板创建独立商品。"
+            message={`已选中 ${selectedSelections.length} 个选品`}
+            description="选中的选品将被分配到所选店铺，个店铺将使用其默认模板创建独立商品。"
             type="info"
             showIcon
           />
@@ -377,6 +485,8 @@ const ProductSelectionPage: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+
+      {renderEditModal()}
     </div>
   );
 };

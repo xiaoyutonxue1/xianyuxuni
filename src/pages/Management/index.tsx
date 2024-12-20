@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, Tag, Select, message, Typography, Tooltip, Modal } from 'antd';
-import { ShopOutlined, EditOutlined, StopOutlined, ExclamationCircleOutlined, SyncOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Input, Space, Tag, Select, message, Typography, Modal, Upload, Image } from 'antd';
+import { ShopOutlined, EditOutlined, StopOutlined, ExclamationCircleOutlined, SyncOutlined, PlusOutlined } from '@ant-design/icons';
 import type { Product } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
@@ -15,26 +15,21 @@ const ProductManagement: React.FC = () => {
   const [activeStoreId, setActiveStoreId] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
   
-  // 使用 store
   const { storeAccounts } = useSettingsStore();
   const { products, updateProduct } = useProductStore();
 
-  // 加载数据
   useEffect(() => {
     console.log('商品管理页面 - 商品数据:', products);
   }, [products]);
 
-  // 刷新数据
   const handleRefresh = () => {
     setLoading(true);
-    // 模拟刷新延迟
     setTimeout(() => {
       setLoading(false);
       message.success('数据已刷新');
     }, 1000);
   };
 
-  // 处理商品下架
   const handleOffline = (record: Product) => {
     confirm({
       title: '确认下架',
@@ -56,7 +51,6 @@ const ProductManagement: React.FC = () => {
     });
   };
 
-  // 处理商品发布
   const handlePublish = (record: Product) => {
     confirm({
       title: '确认发布',
@@ -79,21 +73,16 @@ const ProductManagement: React.FC = () => {
     });
   };
 
-  // 处理商品编辑
   const handleEdit = (record: Product) => {
-    // TODO: 实现编辑功能
     message.info('编辑功能开发中');
   };
 
-  // 过滤和搜索商品
   const getFilteredProducts = () => {
     const filteredProducts = products.filter(product => {
-      // 店铺筛选
       if (activeStoreId !== 'all' && product.storeId !== activeStoreId) {
         return false;
       }
 
-      // 搜索过滤
       if (searchText) {
         const searchLower = searchText.toLowerCase();
         return (
@@ -106,7 +95,6 @@ const ProductManagement: React.FC = () => {
       return true;
     });
 
-    console.log('商品管理页面 - 过滤后的商品数据:', filteredProducts); // 添加日志
     return filteredProducts;
   };
 
@@ -122,9 +110,29 @@ const ProductManagement: React.FC = () => {
           </Space>
           {record.distributedTitle && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              模板渲染: {record.distributedTitle}
+              {record.distributedTitle}
             </Text>
           )}
+        </Space>
+      ),
+    },
+    {
+      title: '头图',
+      key: 'coverImage',
+      width: 120,
+      render: (_, record: Product) => (
+        <Space direction="vertical" size={4} align="center">
+          {record.coverImage ? (
+            <>
+              <Image
+                src={record.coverImage}
+                alt="商品头图"
+                width={80}
+                height={80}
+                style={{ objectFit: 'cover' }}
+              />
+            </>
+          ) : null}
         </Space>
       ),
     },

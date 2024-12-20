@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import type { ProductSelection } from '../types/product';
+import type { ProductSelection, ProductSelectionStatus } from '../types/product';
+import create from 'zustand';
 
 // 从localStorage获取初始数据
 const getInitialSelections = (): ProductSelection[] => {
@@ -23,38 +23,36 @@ const saveSelections = (selections: ProductSelection[]) => {
 
 interface SelectionStore {
   selections: ProductSelection[];
-  addSelection: (selection: ProductSelection) => void;
-  updateSelectionStatus: (id: string, status: ProductSelection['status'], distributedAt?: string) => void;
+  setSelections: (selections: ProductSelection[]) => void;
+  updateSelectionStatus: (id: string, status: ProductSelectionStatus) => void;
   deleteSelections: (ids: string[]) => void;
+  updateSelection: (selection: ProductSelection) => void;
 }
 
 const useSelectionStore = create<SelectionStore>((set) => ({
   selections: getInitialSelections(),
   
-  addSelection: (selection) => 
-    set((state) => {
-      const newSelections = [...state.selections, selection];
-      saveSelections(newSelections);
-      return { selections: newSelections };
-    }),
+  setSelections: (selections) => set({ selections }),
   
-  updateSelectionStatus: (id, status, distributedAt) =>
-    set((state) => {
-      const newSelections = state.selections.map(selection =>
-        selection.id === id
-          ? { ...selection, status, distributedAt }
-          : selection
-      );
-      saveSelections(newSelections);
-      return { selections: newSelections };
-    }),
+  updateSelectionStatus: (id, status) => set((state) => ({
+    selections: state.selections.map((s) =>
+      s.id === id ? { ...s, status } : s
+    ),
+  })),
   
-  deleteSelections: (ids) =>
-    set((state) => {
-      const newSelections = state.selections.filter(selection => !ids.includes(selection.id));
-      saveSelections(newSelections);
-      return { selections: newSelections };
-    })
+  deleteSelections: (ids) => set((state) => ({
+    selections: state.selections.filter((s) => !ids.includes(s.id))
+  })),
+
+  updateSelection: (selection) => set((state) => ({
+    selections: state.selections.map((s) =>
+      s.id === selection.id ? {
+        ...s,
+        ...selection,
+        lastUpdated: new Date().toISOString(),
+      } : s
+    )
+  })),
 }));
 
 export default useSelectionStore; 
