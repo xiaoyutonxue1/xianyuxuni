@@ -1,9 +1,20 @@
 # 数据库设计文档
 
 ## 版本
-v0.2.8
+v0.2.9
 
 ## 更新历史
+
+### v0.2.9 (2024-12-22)
+- 优化选品管理功能
+  - 修复选品创建功能
+  - 完善状态管理逻辑
+  - 优化数据存储机制
+  - 改进类型定义
+- 改进数据结构
+  - 添加source_status字段，用于记录选品创建状态
+  - 优化状态流转逻辑
+  - 完善数据一致性
 
 ### v0.2.8 (2024-12-21)
 - 优化商品数据结构
@@ -66,16 +77,25 @@ v0.2.8
 |-------|------|-----|------|
 | id | string | 是 | 选品ID |
 | name | string | 是 | 选品名称 |
-| category | string | 否 | 选品分类 |
-| description | string | 否 | 选品描述 |
-| price | number | 是 | 选品价格 |
-| stock | number | 是 | 选品库存 |
-| status | enum | 是 | 选品状态(pending/distributed) |
-| source | enum | ��� | 创建方式(manual/crawler) |
-| hasSpecs | boolean | 是 | 是否有多规格 |
-| saleInfo | object | 否 | 销售信息(单规格) |
-| specs | array | 否 | 规格信息(多规格) |
-| createdAt | datetime | 是 | 创建时间 |
+| category | string | 是 | 商品分类 |
+| description | string | 否 | 商品描述 |
+| keywords | string[] | 否 | 关键词 |
+| remark | string | 否 | 备注 |
+| price | number | 是 | 价格 |
+| stock | number | 是 | 库存 |
+| createdAt | string | 是 | 创建时间 |
+| status | string | 是 | 选品状态 |
+| source_status | string | 是 | 创建状态 |
+| source | string | 是 | 来源(manual/crawler) |
+| hasSpecs | boolean | 是 | 是否有规格 |
+| specs | ProductSpec[] | 否 | 规格信息 |
+| deliveryMethod | string | 否 | 发货方式 |
+| deliveryInfo | string | 否 | 发货信息 |
+| productUrl | string | 否 | 商品链接 |
+| errorMessage | string | 否 | 错误信息 |
+| completeness | number | 否 | 完整度 |
+| distributedAt | string | 否 | 分配时间 |
+| coverImage | string | 否 | 商品封面图 |
 
 ### 商品表 (products)
 | 字段名 | 类型 | 必填 | 描述 |
