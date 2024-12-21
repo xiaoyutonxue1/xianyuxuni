@@ -34,6 +34,15 @@ export type ProductSelectionStatus =
   | 'distributed'       // 已分配
   | 'inactive';         // 已下架
 
+// 选品创建状态类型
+export type ProductSourceStatus =
+  | 'manual'           // 手动创建
+  | 'crawler_pending'  // 待爬虫
+  | 'crawler_running'  // 爬虫进行中
+  | 'crawler_success'  // 爬虫成功
+  | 'crawler_failed'   // 爬虫失败
+  | 'inactive';        // 已下架
+
 // 选品基础信息
 export interface ProductSelection {
   id: string;
@@ -56,6 +65,7 @@ export interface ProductSelection {
   completeness?: number;
   distributedAt?: string;
   coverImage?: string;
+  source_status: ProductSourceStatus;  // 创建状态
 }
 
 // 商品状态类型

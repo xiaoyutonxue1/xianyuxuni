@@ -24,17 +24,16 @@ import EditProductForm from './EditProductForm';
 import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
 import type { TableProps } from 'antd';
 import type { ColumnsType, SortOrder } from 'antd/es/table/interface';
-import type { CreateProductRequest } from '../../types/product';
+import type { ProductSelection, ProductSourceStatus, ProductSelectionStatus } from '../../types/product';
 import dayjs from 'dayjs';
 import ProductFilter from './components/ProductFilter';
-import type { Product } from '../../types/product';
 
 const { Search } = Input;
 const { confirm } = Modal;
 const { Text } = Typography;
 
 // 商品状态配置
-const statusConfig = {
+const statusConfig: Record<ProductSourceStatus, { text: string; color: string; icon: React.ReactNode }> = {
   manual: { 
     text: '手动创建', 
     color: 'success',
@@ -64,7 +63,7 @@ const statusConfig = {
     text: '已下架', 
     color: 'default',
     icon: null 
-  },
+  }
 };
 
 // 从 localStorage 获取数据,如果没有则返回空数组
@@ -166,7 +165,7 @@ const ProductLibrary: React.FC = () => {
         ? { ...item, status: 'inactive' as const }
         : item
     );
-    // TODO: 实现批量��新状态的功能
+    // TODO: 实现批量新状态的功能
     setSelectedRowKeys([]);
     message.success('批量下架成功');
   };
@@ -183,29 +182,31 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 处理新增表单提交
-  const handleCreateSubmit = async (values: CreateProductRequest) => {
+  const handleCreateSubmit = async (values: any) => {
     try {
       // 创建新的选品记录
-      const newSelection = {
+      const newSelection: Partial<ProductSelection> & { id: string } = {
         id: Date.now().toString(),
         name: values.name,
         category: values.category,
+        description: values.description,
+        keywords: values.keywords,
+        remark: values.remark,
         price: values.price,
         stock: values.stock,
-        status: values.method === 'manual' ? 'manual' : 'crawler_pending',
         createdAt: new Date().toISOString(),
-        description: values.description,
+        status: 'pending' as ProductSelectionStatus,
         source: values.method,
+        source_status: (values.method === 'manual' ? 'manual' : 'crawler_pending') as ProductSourceStatus,
         hasSpecs: values.hasSpecs,
-        saleInfo: values.hasSpecs ? undefined : {
-          price: values.price,
-          stock: values.stock,
-          deliveryMethod: values.deliveryMethod,
-          deliveryInfo: values.deliveryInfo,
-          originalPrice: values.price
-        },
-        specs: values.hasSpecs ? values.specs : undefined,
-        lastUpdated: new Date().toISOString()
+        specs: values.hasSpecs ? values.specs?.map((spec: any) => ({
+          ...spec,
+          id: `spec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        })) : undefined,
+        deliveryMethod: values.deliveryMethod,
+        deliveryInfo: values.deliveryInfo,
+        productUrl: values.productUrl,
+        coverImage: values.coverImage,
       };
 
       // 添加到选品库
@@ -245,11 +246,11 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 表格列配置
-  const columns: ColumnsType<Product> = [
+  const columns: ColumnsType<ProductSelection> = [
     {
       title: '商品信息',
       key: 'productInfo',
-      render: (_, record: Product) => (
+      render: (_, record: ProductSelection) => (
         <Space direction="vertical" size={0}>
           <Space>
             <span style={{ fontWeight: 'bold' }}>{record.name}</span>
@@ -259,7 +260,7 @@ const ProductLibrary: React.FC = () => {
             <Tag color="blue">来源: {record.source === 'manual' ? '手动' : '自动'}</Tag>
             {record.completeness && (
               <Tag color={record.completeness >= 100 ? 'success' : 'warning'}>
-                完整度: {record.completeness}%
+                完��度: {record.completeness}%
               </Tag>
             )}
           </Space>
@@ -272,7 +273,7 @@ const ProductLibrary: React.FC = () => {
     {
       title: '价格/库存',
       key: 'priceAndStock',
-      render: (_, record: Product) => (
+      render: (_, record: ProductSelection) => (
         <Space direction="vertical" size={0}>
           <span style={{ fontWeight: 'bold' }}>¥{record.price}</span>
           <span style={{ color: '#666' }}>库存: {record.stock}</span>
@@ -283,19 +284,16 @@ const ProductLibrary: React.FC = () => {
       title: '状态',
       key: 'status',
       width: 150,
-      render: (_, record: Product) => {
-        const config = statusConfig[record.status] || {
-          text: record.status,
+      render: (_, record: ProductSelection) => {
+        const config = statusConfig[record.source_status] || {
+          text: '未知状态',
           color: 'default',
           icon: null
         };
-
         return (
-          <Space direction="vertical" size={0}>
-            <Tag color={config.color}>
-              {config.icon}{config.text}
-            </Tag>
-          </Space>
+          <Tag color={config.color}>
+            {config.icon}{config.text}
+          </Tag>
         );
       },
       filters: [
@@ -306,7 +304,7 @@ const ProductLibrary: React.FC = () => {
         { text: '爬虫失败', value: 'crawler_failed' },
         { text: '已下架', value: 'inactive' },
       ],
-      onFilter: (value, record) => record.status === value,
+      onFilter: (value, record) => record.source_status === value,
     },
     {
       title: '创建时间',
@@ -321,7 +319,7 @@ const ProductLibrary: React.FC = () => {
       dataIndex: 'completeness',
       key: 'completeness',
       width: 200,
-      render: (_, record: Product) => {
+      render: (_, record: ProductSelection) => {
         const completeness = calculateCompleteness(record);
         const missingFields = getMissingFields(record);
         return (
@@ -390,7 +388,7 @@ const ProductLibrary: React.FC = () => {
   ];
 
   // 处理表格变化
-  const handleTableChange: TableProps<Product>['onChange'] = (pagination, filters, sorter) => {
+  const handleTableChange: TableProps<ProductSelection>['onChange'] = (pagination, filters, sorter) => {
     console.log('Table changed:', { pagination, filters, sorter });
   };
 
@@ -450,18 +448,17 @@ const ProductLibrary: React.FC = () => {
     // 更新状态为爬虫进行中
     addSelection({
       id,
-      status: 'crawler_running',
-      lastUpdated: new Date().toISOString()
+      source_status: 'crawler_running' as ProductSourceStatus,
     });
     message.success('选品创建成功，正在进行爬虫...');
 
     // 模拟爬虫完成
     setTimeout(() => {
       const success = Math.random() > 0.3; // 70% 成功率
+      const newStatus = success ? 'crawler_success' : 'crawler_failed';
       addSelection({
         id,
-        status: success ? 'crawler_success' : 'crawler_failed',
-        lastUpdated: new Date().toISOString()
+        source_status: newStatus as ProductSourceStatus,
       });
       
       // 如果爬虫成功，更新状态为待分配
@@ -469,8 +466,8 @@ const ProductLibrary: React.FC = () => {
         setTimeout(() => {
           addSelection({
             id,
-            status: 'pending',
-            lastUpdated: new Date().toISOString()
+            status: 'pending' as ProductSelectionStatus,
+            source_status: 'crawler_success' as ProductSourceStatus,
           });
           message.success('爬虫完成，选品已进入待分配状态');
         }, 1000);
