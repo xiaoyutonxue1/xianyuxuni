@@ -39,20 +39,17 @@ const ProductManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<ProductStatus | ''>('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectedRows, setSelectedRows] = useState<Product[]>([]);
   
   // 使用 store
-  const { products, updateProduct, addProducts } = useProductStore();
+  const { products, updateProduct, addProducts, removeProduct } = useProductStore();
   const { productSettings } = useSettingsStore();
 
   // 过滤和搜索商品
   const getFilteredProducts = () => {
     let filteredData = [...products];
     
-    // 按创建时间降序排序
-    filteredData.sort((a, b) => 
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
     // 搜索过滤
     if (searchText) {
       const searchLower = searchText.toLowerCase();
@@ -83,7 +80,7 @@ const ProductManagement: React.FC = () => {
     return filteredData;
   };
 
-  // 日期快捷选项
+  // 日期快选项
   const dateRangePresets: {
     label: string;
     value: [Dayjs, Dayjs];
@@ -131,7 +128,7 @@ const ProductManagement: React.FC = () => {
       };
       addProducts([testProduct]);
     }
-  }, [products, addProducts]);
+  }, [addProducts]);
 
   // 监听products变化
   useEffect(() => {
@@ -168,7 +165,7 @@ const ProductManagement: React.FC = () => {
       
       console.log('Submitting edit with values:', values);
       
-      // 将编辑后的数据转换回Product类型
+      // 将编辑后的据转换回Product类型
       const updatedProduct = convertSelectionToProduct(values, selectedProduct);
       
       // 更新商品数据
@@ -227,6 +224,62 @@ const ProductManagement: React.FC = () => {
     setIsEditModalVisible(true);
   };
 
+  // 处理多选
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (selectedKeys: React.Key[], selectedItems: Product[]) => {
+      setSelectedRowKeys(selectedKeys);
+      setSelectedRows(selectedItems);
+    }
+  };
+
+  // 处理批量下架
+  const handleBatchOffline = () => {
+    Modal.confirm({
+      title: '确认下架',
+      content: `确定要下架选中的 ${selectedRowKeys.length} 个商品吗？`,
+      onOk: async () => {
+        try {
+          selectedRows.forEach(product => {
+            updateProduct({
+              ...product,
+              status: 'offline',
+              lastUpdated: new Date().toISOString()
+            });
+          });
+          message.success('批量下架成功');
+          setSelectedRowKeys([]);
+          setSelectedRows([]);
+        } catch (error) {
+          message.error('批量下架失败');
+        }
+      }
+    });
+  };
+
+  // 处理批量删除
+  const handleBatchDelete = () => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个商品吗？此操作不可恢复！`,
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          selectedRows.forEach(product => {
+            removeProduct(product.id);
+          });
+          message.success('批量删除成功');
+          setSelectedRowKeys([]);
+          setSelectedRows([]);
+        } catch (error) {
+          message.error('批量删除失败');
+        }
+      }
+    });
+  };
+
   const columns: ColumnsType<Product> = [
     {
       title: '商品信息',
@@ -268,6 +321,15 @@ const ProductManagement: React.FC = () => {
           <span className="text-gray-500">库存: {record.stock}</span>
         </Space>
       ),
+      sorter: (a, b) => {
+        // 首先按价格排序
+        if (a.price !== b.price) {
+          return a.price - b.price;
+        }
+        // 价格相同时按库存排序
+        return a.stock - b.stock;
+      },
+      sortDirections: ['ascend', 'descend'],
     },
     {
       title: '状态',
@@ -286,7 +348,7 @@ const ProductManagement: React.FC = () => {
             <Tag color={color}>{text}</Tag>
             {record.publishedAt && (
               <span className="text-gray-500 text-xs">
-                发布于 {new Date(record.publishedAt).toLocaleDateString()}
+                发布于 {dayjs(record.publishedAt).format('YYYY-MM-DD HH:mm')}
               </span>
             )}
           </Space>
@@ -300,6 +362,8 @@ const ProductManagement: React.FC = () => {
         { text: '已下架', value: 'offline' },
       ],
       onFilter: (value, record) => record.status === value,
+      sorter: (a, b) => a.status.localeCompare(b.status),
+      sortDirections: ['ascend', 'descend'],
     },
     {
       title: (
@@ -320,8 +384,10 @@ const ProductManagement: React.FC = () => {
         </Space>
       ),
       key: 'createdAt',
-      render: (_, record) => new Date(record.createdAt).toLocaleString(),
-      sorter: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      render: (_, record) => dayjs(record.createdAt).format('YYYY-MM-DD HH:mm'),
+      sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
+      sortDirections: ['ascend', 'descend'],
+      defaultSortOrder: 'descend',
     },
     {
       title: '操作',
@@ -359,6 +425,16 @@ const ProductManagement: React.FC = () => {
             <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
               新增商品
             </Button>
+            {selectedRowKeys.length > 0 && (
+              <Space>
+                <Button danger onClick={handleBatchOffline}>
+                  批量下架
+                </Button>
+                <Button danger type="primary" onClick={handleBatchDelete}>
+                  批量删除
+                </Button>
+              </Space>
+            )}
             <Select
               placeholder="商品状态"
               style={{ width: 120 }}
@@ -390,7 +466,7 @@ const ProductManagement: React.FC = () => {
             />
           </Space>
           <Search
-            placeholder="搜索商品名称/分发标题"
+            placeholder="搜索商品名称/分标题"
             style={{ width: 300 }}
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
@@ -399,6 +475,7 @@ const ProductManagement: React.FC = () => {
         </div>
 
         <Table
+          rowSelection={rowSelection}
           columns={columns}
           dataSource={getFilteredProducts()}
           rowKey="id"

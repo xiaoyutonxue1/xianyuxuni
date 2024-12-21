@@ -39,6 +39,18 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
   const [completeness, setCompleteness] = useState(calculateCompleteness(initialValues));
   const [missingFields, setMissingFields] = useState<string[]>(getMissingFields(initialValues));
   const [previewIndex, setPreviewIndex] = useState<number>(0);
+  const [coverImageUrl, setCoverImageUrl] = useState<string>(initialValues.coverImage || '');
+  const [coverImageLoading, setCoverImageLoading] = useState(false);
+  const [coverImageList, setCoverImageList] = useState<UploadFile[]>(
+    initialValues.coverImage ? [{
+      uid: '-1',
+      name: 'cover-image',
+      status: 'done',
+      url: initialValues.coverImage,
+      type: 'image/jpeg',
+      thumbUrl: initialValues.coverImage
+    }] : []
+  );
 
   const { productSettings } = useSettingsStore();
 
@@ -214,6 +226,32 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
     }
   };
 
+  // 处理头图上传前的预览
+  const handleCoverImagePreview = async (file: File) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setCoverImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+      return false; // 阻止自动上传
+    } catch (error) {
+      console.error('Error previewing cover image:', error);
+      return false;
+    }
+  };
+
+  // 处理头图变化
+  const handleCoverImageChange = (info: any) => {
+    if (info.file.status === 'uploading') {
+      setCoverImageLoading(true);
+      return;
+    }
+    if (info.file.status === 'done') {
+      setCoverImageLoading(false);
+    }
+  };
+
   // 处理表单提交
   const handleSubmit = async (values: any) => {
     try {
@@ -221,7 +259,9 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
       const submitData = {
         ...values,
         // 处理头图
-        coverImage: values.coverImage?.[0]?.thumbUrl || values.coverImage?.[0]?.url || values.coverImage,
+        coverImage: coverImageList[0]?.originFileObj ? 
+          await getBase64(coverImageList[0].originFileObj) : 
+          coverImageList[0]?.url || '',
         // 保留商品标题和文案
         distributedTitle: values.distributedTitle?.trim(),
         distributedContent: values.distributedContent?.trim(),
@@ -248,12 +288,19 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
       <Form
         form={form}
         layout="vertical"
-        initialValues={initialValues}
-        onFinish={handleSubmit}
-        onValuesChange={(changedValues, allValues) => {
-          console.log('Form values changed:', { changedValues, allValues });
-          handleFormChange();
+        initialValues={{
+          ...initialValues,
+          coverImage: initialValues.coverImage ? [{
+            uid: '-1',
+            name: 'cover-image',
+            status: 'done',
+            url: initialValues.coverImage,
+            type: 'image/jpeg',
+            thumbUrl: initialValues.coverImage
+          }] : []
         }}
+        onFinish={handleSubmit}
+        onValuesChange={handleFormChange}
       >
         <div className="mb-4 flex justify-between items-center">
           <span className="text-lg font-medium">编辑商品</span>
@@ -311,30 +358,56 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
           <Input placeholder="请输入商品名称" />
         </Form.Item>
 
-        {/* 添加头图上传 */}
+        {/* 修改头图上传 */}
         <Form.Item
           name="coverImage"
           label="商品头图"
+          rules={[{ required: true, message: '请上传商品头图' }]}
         >
           <Upload
+            name="coverImage"
             listType="picture-card"
-            maxCount={1}
             showUploadList={true}
+            maxCount={1}
+            fileList={coverImageList}
             beforeUpload={(file) => {
               const isImage = file.type.startsWith('image/');
               if (!isImage) {
                 message.error('只能上传图片文件！');
                 return false;
               }
-              const isLt5M = file.size / 1024 / 1024 < 5;
-              if (!isLt5M) {
-                message.error('图片必须小于5MB！');
-                return false;
+              // 读取文件并更新表单值
+              getBase64(file).then(url => {
+                const newFile: UploadFile = {
+                  uid: '-1',
+                  name: file.name,
+                  status: 'done',
+                  url: url,
+                  type: file.type,
+                  thumbUrl: url,
+                  originFileObj: file
+                };
+                setCoverImageList([newFile]);
+                form.setFieldsValue({ coverImage: url });
+              });
+              return false;
+            }}
+            onChange={({ fileList }) => {
+              setCoverImageList(fileList);
+              if (fileList.length === 0) {
+                form.setFieldsValue({ coverImage: undefined });
               }
-              return true;
+            }}
+            onPreview={async (file) => {
+              if (!file.url && !file.preview) {
+                file.preview = await getBase64(file.originFileObj as File);
+              }
+              setPreviewImage(file.url || file.preview as string);
+              setPreviewOpen(true);
+              setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
             }}
           >
-            {!form.getFieldValue('coverImage') && (
+            {!coverImageList.length && (
               <div className="flex flex-col items-center justify-center">
                 <PlusOutlined />
                 <div className="mt-2">上传头图</div>
@@ -386,7 +459,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
           label={
             <Space>
               公共图片
-              <Tooltip title="这些图片会同步到所有店铺，可以拖拽调整顺序，最多上传27张">
+              <Tooltip title="这些图片会同步到所有店铺，可以拖拽调整顺序，多上传27张">
                 <InfoCircleFilled style={{ color: '#1890ff' }} />
               </Tooltip>
             </Space>
@@ -412,11 +485,6 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
                 const isImage = file.type.startsWith('image/');
                 if (!isImage) {
                   message.error('只能上传图片文件！');
-                  return false;
-                }
-                const isLt5M = file.size / 1024 / 1024 < 5;
-                if (!isLt5M) {
-                  message.error('图片必须小于5MB！');
                   return false;
                 }
                 return true;
