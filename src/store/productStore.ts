@@ -29,13 +29,14 @@ const saveToLocalStorage = (state: { products: Product[]; selections: ProductSel
   }
 };
 
-interface ProductStore {
+export interface ProductStore {
   // 商品数据
   products: Product[];
   selections: ProductSelection[];
   
   // 操作方法
   addProducts: (products: Product[]) => void;
+  addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   removeProduct: (productId: string) => void;
   setSelections: (selections: ProductSelection[]) => void;
@@ -52,14 +53,25 @@ const useProductStore = create<ProductStore>((set) => {
     
     addProducts: (products) => set((state) => {
       const newState = {
+        ...state,
         products: [...state.products, ...products]
       };
-      saveToLocalStorage({ ...state, ...newState });
+      saveToLocalStorage(newState);
+      return newState;
+    }),
+    
+    addProduct: (product) => set((state) => {
+      const newState = {
+        ...state,
+        products: [...state.products, product]
+      };
+      saveToLocalStorage(newState);
       return newState;
     }),
     
     updateProduct: (product) => set((state) => {
       const newState = {
+        ...state,
         products: state.products.map((p) => 
           p.id === product.id ? {
             ...p,
@@ -68,26 +80,28 @@ const useProductStore = create<ProductStore>((set) => {
           } : p
         )
       };
-      saveToLocalStorage({ ...state, ...newState });
+      saveToLocalStorage(newState);
       return newState;
     }),
     
     removeProduct: (productId) => set((state) => {
       const newState = {
+        ...state,
         products: state.products.filter((p) => p.id !== productId)
       };
-      saveToLocalStorage({ ...state, ...newState });
+      saveToLocalStorage(newState);
       return newState;
     }),
     
     setSelections: (selections) => set((state) => {
-      const newState = { selections };
-      saveToLocalStorage({ ...state, ...newState });
+      const newState = { ...state, selections };
+      saveToLocalStorage(newState);
       return newState;
     }),
     
     updateSelection: (selection) => set((state) => {
       const newState = {
+        ...state,
         selections: state.selections.map((s) =>
           s.id === selection.id ? {
             ...s,
@@ -96,18 +110,20 @@ const useProductStore = create<ProductStore>((set) => {
           } : s
         )
       };
-      saveToLocalStorage({ ...state, ...newState });
+      saveToLocalStorage(newState);
       return newState;
     }),
 
     addSelection: (selection) => set((state) => {
       const newState = {
+        ...state,
         selections: [...state.selections, selection]
       };
-      saveToLocalStorage({ ...state, ...newState });
+      saveToLocalStorage(newState);
       return newState;
     }),
   };
 });
 
+export type State = ReturnType<typeof useProductStore>;
 export default useProductStore; 

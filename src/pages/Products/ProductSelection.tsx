@@ -310,7 +310,7 @@ const ProductSelectionPage: React.FC = () => {
       key: 'source',
       render: (_, record) => (
         <Tag color={record.source === 'manual' ? 'blue' : 'purple'}>
-          {record.source === 'manual' ? '手动创建' : '爬虫���取'}
+          {record.source === 'manual' ? '手动创建' : '爬虫抓取'}
         </Tag>
       ),
       filters: [

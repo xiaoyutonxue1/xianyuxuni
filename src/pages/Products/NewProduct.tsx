@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message } from 'antd';
+import { message, Button } from 'antd';
 import CreateProductForm from './CreateProductForm';
 import type { CreateProductRequest } from '../../types/product';
 import useSelectionStore from '../../store/selectionStore';

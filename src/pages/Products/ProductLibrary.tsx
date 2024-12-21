@@ -150,7 +150,7 @@ const ProductLibrary: React.FC = () => {
     confirmModalRef.current = confirm({
       title: '确认删除',
       icon: <ExclamationCircleFilled />,
-      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可��复！`,
+      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可��！`,
       okText: '确定',
       okType: 'danger',
       cancelText: '取消',
@@ -541,8 +541,8 @@ const ProductLibrary: React.FC = () => {
       <Card>
         <div className="mb-4 flex justify-between items-center">
           <Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-              新增商品
+            <Button type="primary" onClick={handleAdd}>
+              + 新增选品
             </Button>
             <Button icon={<RobotOutlined />} onClick={() => message.info('爬虫功能开发中，敬请期待')}>
               批量抓取
@@ -678,9 +678,9 @@ const ProductLibrary: React.FC = () => {
         </div>
       </Modal>
       
-      {/* 新增商品弹窗 */}
+      {/* 新增选品弹窗 */}
       <Modal
-        title="新增商品"
+        title="新增选品"
         open={isCreateModalVisible}
         onCancel={() => setIsCreateModalVisible(false)}
         footer={null}

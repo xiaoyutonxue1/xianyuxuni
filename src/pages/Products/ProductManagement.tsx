@@ -103,33 +103,6 @@ const ProductManagement: React.FC = () => {
     </div>
   );
 
-  // 添加测试数据
-  useEffect(() => {
-    if (products.length === 0) {
-      const testProduct: Product = {
-        id: '1',
-        name: '测试商品',
-        category: '电子书' as ProductCategory,
-        description: '这是一个测试商品',
-        price: 99,
-        stock: 100,
-        createdAt: new Date().toISOString(),
-        source: 'manual',
-        hasSpecs: false,
-        selectionId: '1',
-        storeId: '1',
-        templateId: '1',
-        status: 'draft',
-        distributedAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-        distributedTitle: '测试商品标题',
-        distributedContent: '测试商品内容',
-        coverImage: 'https://example.com/test.jpg'
-      };
-      addProducts([testProduct]);
-    }
-  }, [addProducts]);
-
   // 监听products变化
   useEffect(() => {
     console.log('Current products:', products);
@@ -422,9 +395,6 @@ const ProductManagement: React.FC = () => {
       <Card>
         <div className="flex justify-between mb-4">
           <Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-              新增商品
-            </Button>
             {selectedRowKeys.length > 0 && (
               <Space>
                 <Button danger onClick={handleBatchOffline}>
