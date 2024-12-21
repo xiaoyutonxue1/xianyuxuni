@@ -18,6 +18,8 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  console.log('EditProductForm rendered with initialValues:', initialValues);
+
   const [form] = Form.useForm();
   const [hasSpecs, setHasSpecs] = useState(initialValues.hasSpecs);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -39,6 +41,12 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
   const [previewIndex, setPreviewIndex] = useState<number>(0);
 
   const { productSettings } = useSettingsStore();
+
+  // 监听表单初始化
+  useEffect(() => {
+    console.log('Form initialized with values:', initialValues);
+    form.setFieldsValue(initialValues);
+  }, [initialValues, form]);
 
   // 更新完整度
   const updateCompleteness = () => {
@@ -212,6 +220,12 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
       // 添加公共图片数据
       const submitData = {
         ...values,
+        // 处理头图
+        coverImage: values.coverImage?.[0]?.thumbUrl || values.coverImage?.[0]?.url || values.coverImage,
+        // 保留商品标题和文案
+        distributedTitle: values.distributedTitle?.trim(),
+        distributedContent: values.distributedContent?.trim(),
+        // 处理公共图片
         commonImages: await Promise.all(fileList.map(async (file) => ({
           id: file.uid,
           url: file.originFileObj ? await getBase64(file.originFileObj) : (file.url || ''),
@@ -236,7 +250,10 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
         layout="vertical"
         initialValues={initialValues}
         onFinish={handleSubmit}
-        onValuesChange={handleFormChange}
+        onValuesChange={(changedValues, allValues) => {
+          console.log('Form values changed:', { changedValues, allValues });
+          handleFormChange();
+        }}
       >
         <div className="mb-4 flex justify-between items-center">
           <span className="text-lg font-medium">编辑商品</span>
@@ -292,6 +309,62 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
           rules={[{ required: true, message: '请输入商品名称' }]}
         >
           <Input placeholder="请输入商品名称" />
+        </Form.Item>
+
+        {/* 添加头图上传 */}
+        <Form.Item
+          name="coverImage"
+          label="商品头图"
+        >
+          <Upload
+            listType="picture-card"
+            maxCount={1}
+            showUploadList={true}
+            beforeUpload={(file) => {
+              const isImage = file.type.startsWith('image/');
+              if (!isImage) {
+                message.error('只能上传图片文件！');
+                return false;
+              }
+              const isLt5M = file.size / 1024 / 1024 < 5;
+              if (!isLt5M) {
+                message.error('图片必须小于5MB！');
+                return false;
+              }
+              return true;
+            }}
+          >
+            {!form.getFieldValue('coverImage') && (
+              <div className="flex flex-col items-center justify-center">
+                <PlusOutlined />
+                <div className="mt-2">上传头图</div>
+              </div>
+            )}
+          </Upload>
+        </Form.Item>
+
+        {/* 添加商品标题 */}
+        <Form.Item
+          name="distributedTitle"
+          label="商品标题"
+          rules={[{ required: true, message: '请输入商品标题' }]}
+        >
+          <Input.TextArea
+            placeholder="请输入商品标题"
+            rows={2}
+          />
+        </Form.Item>
+
+        {/* 添加商品文案 */}
+        <Form.Item
+          name="distributedContent"
+          label="商品文案"
+          rules={[{ required: true, message: '请输入商品文案' }]}
+        >
+          <Input.TextArea
+            placeholder="请输入商品文案"
+            rows={4}
+          />
         </Form.Item>
 
         <Form.Item
@@ -610,4 +683,5 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
   );
 };
 
+// 确保组件被正确导出
 export default EditProductForm; 

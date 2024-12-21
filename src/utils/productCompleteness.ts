@@ -22,8 +22,17 @@ export const calculateCompleteness = (record: any) => {
       if (record[field]) completedFields++;
     });
 
+    // 检查头图
+    totalFields += 1;
+    if (record.coverImage) completedFields++;
+
+    // 检查商品标题和文案
+    totalFields += 2;
+    if (record.distributedTitle?.trim()) completedFields++;
+    if (record.distributedContent?.trim()) completedFields++;
+
     // 检查公共图片
-    totalFields += 1; // 增加公共图片字段
+    totalFields += 1;
     if (record.commonImages && record.commonImages.length > 0) {
       completedFields++;
     }
@@ -64,8 +73,15 @@ export const getMissingFields = (record: any) => {
   } else {
     // 手动模式
     // 检查基础信息
-    if (!record.name) missingFields.push('商品名称');
+    if (!record.name) missingFields.push('��品名称');
     if (!record.category) missingFields.push('商品分类');
+    
+    // 检查头图
+    if (!record.coverImage) missingFields.push('商品头图');
+
+    // 检查商品标题和文案
+    if (!record.distributedTitle?.trim()) missingFields.push('商品标题');
+    if (!record.distributedContent?.trim()) missingFields.push('商品文案');
     
     // 检查公共图片
     if (!record.commonImages || record.commonImages.length === 0) {

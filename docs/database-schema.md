@@ -1,19 +1,9 @@
 # 数据库设计文档
 
 ## 版本
-v0.3.2
+v0.3.1
 
 ## 更新历史
-
-### v0.3.2 (2024-12-23)
-- 优化数据结构
-  - 完善商品编辑相关字段
-  - 优化筛选条件的数据模型
-  - 改进日期筛选的存储结构
-- 改进数据管理
-  - 优化数据过滤机制
-  - 完善数据更新逻辑
-  - 改进数据同步机制
 
 ### v0.3.1 (2024-12-23)
 - 优化数据展示
@@ -60,7 +50,7 @@ v0.3.2
 - 优化选品数据结构
   - 添加commonImages字段，用于存储公共图片信息
   - 完善图片数据的存储格式
-  - 优化图片排序和管理机��
+  - 优化图片排序和管理机制
 - 改进数据完整度计算
   - 将公共图片纳入完整度计算
   - 优化完整度检查机制
@@ -108,7 +98,7 @@ v0.3.2
 | id | string | 是 | 选品ID |
 | name | string | 是 | 选品名称 |
 | category | string | 是 | 商品分类 |
-| description | string | 否 | 商品���述 |
+| description | string | 否 | 商品描述 |
 | keywords | string[] | 否 | 关键词 |
 | remark | string | 否 | 备注 |
 | price | number | 是 | 价格 |
@@ -144,7 +134,7 @@ v0.3.2
 | distributedContent | string | 是 | 模板渲染后的文案 |
 | distributedAt | datetime | 是 | 分配时间 |
 | publishedAt | datetime | 否 | 发布时间 |
-| lastUpdated | datetime | 是 | 最后更新时间 |
+| lastUpdated | datetime | 是 | 最后更新时�� |
 
 ### 店铺表 (stores)
 | 字段名 | 类型 | 必填 | 描述 |

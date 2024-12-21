@@ -3,7 +3,7 @@ import MainLayout from '../components/MainLayout';
 import Dashboard from '../pages/Dashboard';
 import ProductLibrary from '../pages/Products/ProductLibrary';
 import ProductAllocation from '../pages/Products/ProductAllocation';
-import ProductManagement from '../pages/Management';
+import ProductManagement from '../pages/Products/ProductManagement';
 import Settings from '../pages/Settings';
 
 const router = createBrowserRouter([
