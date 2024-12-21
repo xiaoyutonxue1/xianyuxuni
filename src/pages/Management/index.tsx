@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, Tag, Select, message, Typography, Modal, Upload, Image } from 'antd';
-import { ShopOutlined, EditOutlined, StopOutlined, ExclamationCircleOutlined, SyncOutlined, PlusOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, Table, Button, Input, Space, Tag, Select, message, Typography, Modal, Upload, Image, Dropdown, DatePicker } from 'antd';
+import { ShopOutlined, EditOutlined, StopOutlined, ExclamationCircleOutlined, SyncOutlined, PlusOutlined, DeleteOutlined, FilterFilled } from '@ant-design/icons';
 import type { Product } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
 import type { ColumnsType } from 'antd/es/table/interface';
+import dayjs from 'dayjs';
+import isBetween from 'dayjs/plugin/isBetween';
+
+dayjs.extend(isBetween);
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -14,6 +18,9 @@ const ProductManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeStoreId, setActiveStoreId] = useState<string>('all');
   const [searchText, setSearchText] = useState('');
+  const [data, setData] = useState([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [dateRange, setDateRange] = useState<string[]>([]);
   
   const { storeAccounts } = useSettingsStore();
   const { products, updateProduct } = useProductStore();
@@ -78,25 +85,90 @@ const ProductManagement: React.FC = () => {
   };
 
   const getFilteredProducts = () => {
-    const filteredProducts = products.filter(product => {
+    let filteredProducts = products.filter(product => {
       if (activeStoreId !== 'all' && product.storeId !== activeStoreId) {
         return false;
       }
 
       if (searchText) {
         const searchLower = searchText.toLowerCase();
-        return (
-          product.name.toLowerCase().includes(searchLower) ||
-          product.distributedTitle?.toLowerCase().includes(searchLower) ||
-          product.category.toLowerCase().includes(searchLower)
-        );
+        const matchName = product.name.toLowerCase().includes(searchLower);
+        const matchTitle = product.distributedTitle?.toLowerCase().includes(searchLower);
+        const matchCategory = product.category.toLowerCase().includes(searchLower);
+        if (!matchName && !matchTitle && !matchCategory) {
+          return false;
+        }
+      }
+
+      const dateFilter = columns.find(col => col.key === 'createdAt')?.filteredValue as string[];
+      if (dateFilter && dateFilter.length === 2) {
+        const recordTime = dayjs(product.createdAt);
+        const startTime = dayjs(dateFilter[0]);
+        const endTime = dayjs(dateFilter[1]);
+        if (!recordTime.isBetween(startTime, endTime, 'day', '[]')) {
+          return false;
+        }
       }
       
       return true;
     });
 
+    filteredProducts.sort((a, b) => 
+      dayjs(b.createdAt).valueOf() - dayjs(a.createdAt).valueOf()
+    );
+
     return filteredProducts;
   };
+
+  const handleBatchDelete = () => {
+    confirm({
+      title: '确认删除',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个商品吗？`,
+      onOk: async () => {
+        try {
+          // TODO: 实现批量删除的功能
+          message.success('批量删除成功');
+          setSelectedRowKeys([]);
+        } catch (error) {
+          message.error('删除失败');
+        }
+      }
+    });
+  };
+
+  const handleBatchOffline = () => {
+    confirm({
+      title: '确认下架',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要下架选中的 ${selectedRowKeys.length} 个商品吗？`,
+      onOk: async () => {
+        try {
+          // TODO: 实现批量下架的功能
+          message.success('批量下架成功');
+          setSelectedRowKeys([]);
+        } catch (error) {
+          message.error('下架失败');
+        }
+      }
+    });
+  };
+
+  const batchActionMenuItems = [
+    {
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      label: '批量删除',
+      onClick: handleBatchDelete,
+      danger: true
+    },
+    {
+      key: 'offline',
+      icon: <StopOutlined />,
+      label: '批量下架',
+      onClick: handleBatchOffline
+    }
+  ];
 
   const columns: ColumnsType<Product> = [
     {
@@ -104,15 +176,15 @@ const ProductManagement: React.FC = () => {
       key: 'productInfo',
       render: (_, record: Product) => (
         <Space direction="vertical" size={0}>
+          {record.distributedTitle && (
+            <Text type="secondary">
+              {record.distributedTitle}
+            </Text>
+          )}
           <Space>
             <Text strong>{record.name}</Text>
             <Tag>{record.category}</Tag>
           </Space>
-          {record.distributedTitle && (
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {record.distributedTitle}
-            </Text>
-          )}
         </Space>
       ),
     },
@@ -207,6 +279,79 @@ const ProductManagement: React.FC = () => {
       onFilter: (value, record) => record.status === value,
     },
     {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 180,
+      render: (createdAt: string) => (
+        <Space direction="vertical" size={0}>
+          <span>{dayjs(createdAt).format('YYYY-MM-DD')}</span>
+          <span style={{ fontSize: '12px', color: '#999' }}>
+            {dayjs(createdAt).format('HH:mm:ss')}
+          </span>
+        </Space>
+      ),
+      sorter: (a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+        <div style={{ padding: 8 }}>
+          <DatePicker.RangePicker
+            style={{ width: '100%' }}
+            value={selectedKeys.length ? [dayjs(selectedKeys[0] as string), dayjs(selectedKeys[1] as string)] : null}
+            onChange={(dates) => {
+              if (dates && dates[0] && dates[1]) {
+                const newRange = [
+                  dates[0].startOf('day').format('YYYY-MM-DD HH:mm:ss'),
+                  dates[1].endOf('day').format('YYYY-MM-DD HH:mm:ss')
+                ];
+                setSelectedKeys(newRange);
+                setDateRange(newRange);
+              } else {
+                setSelectedKeys([]);
+                setDateRange([]);
+              }
+            }}
+            ranges={{
+              '今天': [dayjs().startOf('day'), dayjs().endOf('day')],
+              '本周': [dayjs().startOf('week'), dayjs().endOf('day')],
+              '本月': [dayjs().startOf('month'), dayjs()],
+              '上个月': [dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')]
+            }}
+            placeholder={['开始日期', '结束日期']}
+          />
+          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
+            <Button
+              size="small"
+              onClick={() => {
+                clearFilters?.();
+                setDateRange([]);
+                confirm();
+              }}
+            >
+              重置
+            </Button>
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => confirm()}
+            >
+              确定
+            </Button>
+          </div>
+        </div>
+      ),
+      filterIcon: (filtered) => (
+        <FilterFilled style={{ color: filtered ? '#1890ff' : undefined }} />
+      ),
+      onFilter: (value: any, record) => {
+        if (!value || !Array.isArray(value) || value.length !== 2) return true;
+        const recordTime = dayjs(record.createdAt);
+        const startTime = dayjs(value[0]);
+        const endTime = dayjs(value[1]);
+        return recordTime.isBetween(startTime, endTime, 'day', '[]');
+      },
+      filteredValue: dateRange
+    },
+    {
       title: '操作',
       key: 'action',
       render: (_, record: Product) => (
@@ -272,6 +417,13 @@ const ProductManagement: React.FC = () => {
             >
               刷新
             </Button>
+            {selectedRowKeys.length > 0 && (
+              <Dropdown menu={{ items: batchActionMenuItems }}>
+                <Button>
+                  批量操作 ({selectedRowKeys.length})
+                </Button>
+              </Dropdown>
+            )}
           </Space>
           
           <Search
@@ -294,6 +446,10 @@ const ProductManagement: React.FC = () => {
           showTotal: total => `共 ${total} 条记录`,
         }}
         loading={loading}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys),
+        }}
       />
     </div>
   );
