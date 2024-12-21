@@ -179,4 +179,8 @@ export interface DistributeInfo {
 // 更新商品请求
 export interface UpdateProductRequest extends Partial<CreateSelectionRequest> {
   id: string;
+}
+
+export interface ProductFilterProps {
+  onFilter: (values: any) => void;
 } 

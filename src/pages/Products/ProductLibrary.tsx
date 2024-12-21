@@ -16,6 +16,7 @@ import {
   CloseCircleFilled,
   SyncOutlined,
   SearchOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
 import useSelectionStore from '../../store/selectionStore';
@@ -25,12 +26,18 @@ import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '
 import type { TableProps } from 'antd';
 import type { ColumnsType, SortOrder } from 'antd/es/table/interface';
 import type { ProductSelection, ProductSourceStatus, ProductSelectionStatus } from '../../types/product';
-import dayjs from 'dayjs';
+import dayjs, { Dayjs } from 'dayjs';
 import ProductFilter from './components/ProductFilter';
+import type { RangePickerProps } from 'antd/es/date-picker';
+import { deliveryMethods } from '../../utils/constants';
+import { formatDate } from '../../utils/date';
+import StatusTag from './components/StatusTag';
 
 const { Search } = Input;
 const { confirm } = Modal;
 const { Text } = Typography;
+const { RangePicker } = DatePicker;
+const { Option } = Select;
 
 // 商品状态配置
 const statusConfig: Record<ProductSourceStatus, { text: string; color: string; icon: React.ReactNode }> = {
@@ -66,7 +73,7 @@ const statusConfig: Record<ProductSourceStatus, { text: string; color: string; i
   }
 };
 
-// 从 localStorage 获取数据,如果没有则返回空数组
+// 从 localStorage 获取数据,如果没有则返回空
 const getInitialProducts = () => {
   const savedProducts = localStorage.getItem('products');
   if (savedProducts) {
@@ -87,12 +94,15 @@ const ProductLibrary: React.FC = () => {
   const [filterValues, setFilterValues] = useState<any>({});
   const productSettings = useSettingsStore(state => state.productSettings);
   const confirmModalRef = useRef<any>(null);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>([null, null]);
+  const [filteredData, setFilteredData] = useState<ProductSelection[]>([]);
 
   // 过滤和搜索商品
   const getFilteredProducts = () => {
     let filteredData = [...selections];
     
-    // 按创建时间降序排序
+    // 按创建时间降序排
     filteredData.sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -113,8 +123,19 @@ const ProductLibrary: React.FC = () => {
       );
     }
 
+    if (dateRange && dateRange[0] && dateRange[1]) {
+      filteredData = filteredData.filter(item => {
+        const createdAt = new Date(item.createdAt);
+        return createdAt >= dateRange[0].toDate() && createdAt <= dateRange[1].toDate();
+      });
+    }
+
     return filteredData;
   };
+
+  useEffect(() => {
+    setFilteredData(getFilteredProducts());
+  }, [dateRange, /* other dependencies */]);
 
   // 处理删除
   const handleDelete = (id: string) => {
@@ -129,7 +150,7 @@ const ProductLibrary: React.FC = () => {
     confirmModalRef.current = confirm({
       title: '确认删除',
       icon: <ExclamationCircleFilled />,
-      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可恢复！`,
+      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可��复！`,
       okText: '确定',
       okType: 'danger',
       cancelText: '取消',
@@ -184,7 +205,7 @@ const ProductLibrary: React.FC = () => {
   // 处理新增表单提交
   const handleCreateSubmit = async (values: any) => {
     try {
-      // 创建新的选品记录
+      // 建新的选品记录
       const newSelection: Partial<ProductSelection> & { id: string } = {
         id: Date.now().toString(),
         name: values.name,
@@ -264,127 +285,95 @@ const ProductLibrary: React.FC = () => {
     }
   };
 
-  // 表格列配置
+  // 表格配置
   const columns: ColumnsType<ProductSelection> = [
     {
       title: '商品信息',
-      key: 'productInfo',
-      render: (_, record: ProductSelection) => (
-        <Space direction="vertical" size={0}>
-          <Space>
-            <span style={{ fontWeight: 'bold' }}>{record.name}</span>
-            <Tag>{record.category}</Tag>
-          </Space>
-          <Space size="small">
-            <Tag color="blue">来源: {record.source === 'manual' ? '手动' : '自动'}</Tag>
-            {record.completeness && (
-              <Tag color={record.completeness >= 100 ? 'success' : 'warning'}>
-                完��度: {record.completeness}%
-              </Tag>
-            )}
-          </Space>
-          {record.description && (
-            <span className="text-gray-500 text-sm">{record.description}</span>
-          )}
-        </Space>
+      dataIndex: 'name',
+      key: 'name',
+      render: (text, record) => (
+        <div className="flex items-start">
+          <div className="flex-1 min-w-0">
+            <div className="font-medium text-gray-900 truncate">{text}</div>
+            <div className="text-sm text-gray-500">
+              {record.category}
+              {record.source === 'manual' ? (
+                <Tag color="blue" className="ml-2">手动</Tag>
+              ) : (
+                <Tag color="green" className="ml-2">爬虫</Tag>
+              )}
+            </div>
+          </div>
+        </div>
       ),
     },
     {
       title: '价格/库存',
       key: 'priceAndStock',
-      render: (_, record: ProductSelection) => (
-        <Space direction="vertical" size={0}>
-          <span style={{ fontWeight: 'bold' }}>¥{record.price}</span>
-          <span style={{ color: '#666' }}>库存: {record.stock}</span>
-        </Space>
+      render: (_, record) => (
+        <div>
+          <div className="text-gray-900">¥{record.price}</div>
+          <div className="text-sm text-gray-500">库存: {record.stock}</div>
+        </div>
       ),
     },
     {
       title: '状态',
+      dataIndex: 'status',
       key: 'status',
-      width: 150,
-      render: (_, record: ProductSelection) => {
-        const config = statusConfig[record.source_status] || {
-          text: '未知状态',
-          color: 'default',
-          icon: null
-        };
-        return (
-          <Tag color={config.color}>
-            {config.icon}{config.text}
-          </Tag>
-        );
-      },
-      filters: [
-        { text: '手动创建', value: 'manual' },
-        { text: '待爬虫', value: 'crawler_pending' },
-        { text: '爬虫进行中', value: 'crawler_running' },
-        { text: '爬虫成功', value: 'crawler_success' },
-        { text: '爬虫失败', value: 'crawler_failed' },
-        { text: '已下架', value: 'inactive' },
-      ],
-      onFilter: (value, record) => record.source_status === value,
+      render: (status, record) => (
+        <div>
+          <StatusTag status={status} source_status={record.source_status} />
+        </div>
+      ),
     },
     {
-      title: '创建时间',
+      title: (
+        <div className="flex items-center space-x-1">
+          <span>创建时间</span>
+          <Tooltip title="筛选日期范围">
+            <CalendarOutlined 
+              className="cursor-pointer text-gray-400 hover:text-blue-500"
+              onClick={() => setDatePickerOpen(true)}
+            />
+          </Tooltip>
+        </div>
+      ),
       dataIndex: 'createdAt',
       key: 'createdAt',
-      width: 180,
-      render: (text: string) => dayjs(text).format('YYYY-MM-DD HH:mm:ss'),
-      sorter: (a, b) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
+      width: 160,
+      render: (date) => (
+        <div className="whitespace-nowrap">
+          {formatDate(date)}
+        </div>
+      ),
+      sorter: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
     },
     {
       title: '完整度',
-      dataIndex: 'completeness',
       key: 'completeness',
-      width: 200,
-      render: (_, record: ProductSelection) => {
-        const completeness = calculateCompleteness(record);
-        const missingFields = getMissingFields(record);
+      render: (_, record) => {
+        const percent = calculateCompleteness(record);
+        const missing = getMissingFields(record);
         return (
           <Tooltip
             title={
-              missingFields.length > 0 ? (
-                <div className="p-2">
-                  <div className="text-base text-red-500 mb-2">
-                    未填写项目
-                  </div>
-                  <div className="bg-red-50 rounded p-2">
-                    {missingFields.map((field, index) => (
-                      <div key={index} className="text-red-400 py-0.5">
-                        • {field}
-                      </div>
-                    ))}
-                  </div>
+              missing.length > 0 ? (
+                <div>
+                  <div className="font-medium mb-1">未填写项目：</div>
+                  {missing.map((field, index) => (
+                    <div key={index} className="text-red-400">• {field}</div>
+                  ))}
                 </div>
-              ) : null
+              ) : '已完善'
             }
-            overlayStyle={{ 
-              maxWidth: '400px',
-              borderRadius: '8px',
-            }}
-            overlayInnerStyle={{
-              borderRadius: '8px',
-            }}
-            color="#fff"
-            placement="left"
           >
-            <div className="cursor-pointer">
-              <Progress
-                percent={completeness}
-                size="small"
-                format={(percent) => (
-                  <span style={{ fontSize: '12px' }}>
-                    {percent}%
-                  </span>
-                )}
-                strokeColor={{
-                  '0%': '#108ee9',
-                  '100%': '#87d068',
-                }}
-                style={{ margin: 0 }}
-              />
-            </div>
+            <Progress
+              percent={percent}
+              size="small"
+              status={percent === 100 ? 'success' : 'active'}
+              format={(percent) => `${percent}%`}
+            />
           </Tooltip>
         );
       },
@@ -392,7 +381,6 @@ const ProductLibrary: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 150,
       render: (_, record) => (
         <Space size="middle">
           <Button type="link" onClick={() => handleEdit(record)}>
@@ -413,53 +401,29 @@ const ProductLibrary: React.FC = () => {
 
   // 处理筛选
   const handleFilter = (filterValues: any) => {
-    let filtered = [...data];
+    setFilterValues(filterValues);
+    let filteredData = [...selections];
 
-    // 分类筛选
+    // 应用筛选条件
     if (filterValues.category) {
-      filtered = filtered.filter(product => product.category === filterValues.category);
-    }
-
-    // 完整度筛选
-    if (filterValues.completeness) {
-      const [min, max] = filterValues.completeness.split('-').map(Number);
-      filtered = filtered.filter(product => {
-        const completeness = calculateCompleteness(product);
-        if (max) {
-          return completeness >= min && completeness <= max;
-        }
-        return completeness === min;
-      });
-    }
-
-    // 规格类型筛选
-    if (filterValues.specType) {
-      filtered = filtered.filter(product => 
-        filterValues.specType === 'single' ? !product.hasSpecs : product.hasSpecs
+      filteredData = filteredData.filter(item => 
+        item.category === filterValues.category
       );
     }
 
-    // 发货方式筛选
-    if (filterValues.deliveryMethod) {
-      filtered = filtered.filter(product => {
-        if (product.hasSpecs && product.specs) {
-          return product.specs.some(spec => spec.deliveryMethod === filterValues.deliveryMethod);
-        }
-        return product.deliveryMethod === filterValues.deliveryMethod;
-      });
+    if (filterValues.status) {
+      filteredData = filteredData.filter(item => 
+        item.status === filterValues.status
+      );
     }
 
-    // 日期范围筛选
-    if (filterValues.startDate && filterValues.endDate) {
-      const startDate = dayjs(filterValues.startDate).startOf('day');
-      const endDate = dayjs(filterValues.endDate).endOf('day');
-      filtered = filtered.filter(product => {
-        const createdAt = dayjs(product.createdAt);
-        return createdAt.isAfter(startDate) && createdAt.isBefore(endDate);
-      });
+    if (filterValues.source) {
+      filteredData = filteredData.filter(item => 
+        item.source === filterValues.source
+      );
     }
 
-    setFilteredProducts(filtered);
+    setFilteredData(filteredData);
   };
 
   // 模拟爬虫状态变化
@@ -491,7 +455,7 @@ const ProductLibrary: React.FC = () => {
           message.success('爬虫完成，选品已进入待分配状态');
         }, 1000);
       } else {
-        message.error('爬虫失败，请重试或切换为手动模式');
+        message.error('爬虫失败，请重试或切换手动模式');
       }
     }, 3000);
   };
@@ -517,6 +481,60 @@ const ProductLibrary: React.FC = () => {
       label: '导出数据'
     }
   ];
+
+  // 处理快捷日期选择
+  const handleQuickDateSelect = (type: string) => {
+    const now = dayjs();
+    let start: Dayjs;
+    let end: Dayjs;
+
+    switch (type) {
+      case 'today':
+        start = now.startOf('day');
+        end = now.endOf('day');
+        break;
+      case 'yesterday':
+        start = now.subtract(1, 'day').startOf('day');
+        end = now.subtract(1, 'day').endOf('day');
+        break;
+      case 'thisWeek':
+        start = now.startOf('week');
+        end = now.endOf('day');
+        break;
+      case 'lastWeek':
+        start = now.subtract(1, 'week').startOf('week');
+        end = now.subtract(1, 'week').endOf('week');
+        break;
+      case 'thisMonth':
+        start = now.startOf('month');
+        end = now.endOf('day');
+        break;
+      case 'lastMonth':
+        start = now.subtract(1, 'month').startOf('month');
+        end = now.subtract(1, 'month').endOf('month');
+        break;
+      default:
+        return;
+    }
+
+    setDateRange([start, end]);
+  };
+
+  // 处理日期范围变化
+  const handleDateRangeChange = (dates: RangeValue<Dayjs>) => {
+    setDateRange(dates);
+  };
+
+  // 清除日期筛选
+  const handleClearDateFilter = () => {
+    setDateRange([null, null]);
+    setDatePickerOpen(false);
+  };
+
+  // 确认日期筛选
+  const handleConfirmDateFilter = () => {
+    setDatePickerOpen(false);
+  };
 
   return (
     <div className="p-6">
@@ -556,7 +574,10 @@ const ProductLibrary: React.FC = () => {
           </Space>
         </div>
 
-        <ProductFilter onFilter={handleFilter} />
+        <ProductFilter 
+          onFilter={handleFilter} 
+          showDateFilter={false} // 禁用日期筛选
+        />
 
         <Table
           columns={columns}
@@ -573,11 +594,90 @@ const ProductLibrary: React.FC = () => {
             showTotal: (total) => `共 ${total} 条记录`,
           }}
           onChange={handleTableChange}
-          defaultSortOrder="descend"
-          sortDirections={['descend']}
         />
       </Card>
 
+      {/* 日期筛选弹窗 */}
+      <Modal
+        title="选择日期范围"
+        open={datePickerOpen}
+        onCancel={() => setDatePickerOpen(false)}
+        footer={[
+          <Button key="clear" onClick={handleClearDateFilter}>
+            清除筛选
+          </Button>,
+          <Button key="cancel" onClick={() => setDatePickerOpen(false)}>
+            取消
+          </Button>,
+          <Button key="ok" type="primary" onClick={handleConfirmDateFilter}>
+            确定
+          </Button>,
+        ]}
+        width={400}
+        centered
+      >
+        <div className="space-y-4">
+          <RangePicker
+            value={dateRange}
+            onChange={handleDateRangeChange}
+            style={{ width: '100%' }}
+            allowClear
+            showTime={{
+              format: 'HH:mm',
+              defaultValue: [dayjs('00:00:00', 'HH:mm:ss'), dayjs('23:59:59', 'HH:mm:ss')]
+            }}
+            format="YYYY-MM-DD HH:mm"
+          />
+          <div>
+            <div className="text-gray-500 mb-2">快捷选项：</div>
+            <Space wrap size={[8, 8]} className="w-full">
+              <Button 
+                size="small" 
+                type={dateRange?.[0]?.isSame(dayjs().startOf('day'), 'day') ? 'primary' : 'default'}
+                onClick={() => handleQuickDateSelect('today')}
+              >
+                今天
+              </Button>
+              <Button 
+                size="small"
+                type={dateRange?.[0]?.isSame(dayjs().subtract(1, 'day').startOf('day'), 'day') ? 'primary' : 'default'}
+                onClick={() => handleQuickDateSelect('yesterday')}
+              >
+                昨天
+              </Button>
+              <Button 
+                size="small"
+                type={dateRange?.[0]?.isSame(dayjs().startOf('week'), 'day') ? 'primary' : 'default'}
+                onClick={() => handleQuickDateSelect('thisWeek')}
+              >
+                本周
+              </Button>
+              <Button 
+                size="small"
+                type={dateRange?.[0]?.isSame(dayjs().subtract(1, 'week').startOf('week'), 'day') ? 'primary' : 'default'}
+                onClick={() => handleQuickDateSelect('lastWeek')}
+              >
+                上周
+              </Button>
+              <Button 
+                size="small"
+                type={dateRange?.[0]?.isSame(dayjs().startOf('month'), 'day') ? 'primary' : 'default'}
+                onClick={() => handleQuickDateSelect('thisMonth')}
+              >
+                本月
+              </Button>
+              <Button 
+                size="small"
+                type={dateRange?.[0]?.isSame(dayjs().subtract(1, 'month').startOf('month'), 'day') ? 'primary' : 'default'}
+                onClick={() => handleQuickDateSelect('lastMonth')}
+              >
+                上月
+              </Button>
+            </Space>
+          </div>
+        </div>
+      </Modal>
+      
       {/* 新增商品弹窗 */}
       <Modal
         title="新增商品"

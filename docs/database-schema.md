@@ -1,9 +1,18 @@
 # 数据库设计文档
 
 ## 版本
-v0.3.0
+v0.3.1
 
 ## 更新历史
+
+### v0.3.1 (2024-12-23)
+- 优化数据展示
+  - 改进日期格式化逻辑
+  - 完善筛选条件处理
+  - 优化数据过滤机制
+- 改进数据结构
+  - 完善筛选条件的数据模型
+  - 优化日期处理逻辑
 
 ### v0.3.0 (2024-12-23)
 - 优化图片管理功能
@@ -125,7 +134,7 @@ v0.3.0
 | distributedContent | string | 是 | 模板渲染后的文案 |
 | distributedAt | datetime | 是 | 分配时间 |
 | publishedAt | datetime | 否 | 发布时间 |
-| lastUpdated | datetime | 是 | 最后更新时间 |
+| lastUpdated | datetime | 是 | 最后更新时�� |
 
 ### 店铺表 (stores)
 | 字段名 | 类型 | 必填 | 描述 |
@@ -137,7 +146,7 @@ v0.3.0
 | templates | array | 否 | 店铺模板列表 |
 | status | enum | 是 | 店铺状态 |
 
-### 店铺��表 (store_groups)
+### 店铺组表 (store_groups)
 | 字段名 | 类型 | 必填 | 描述 |
 |-------|------|-----|------|
 | id | string | 是 | 店铺组ID |

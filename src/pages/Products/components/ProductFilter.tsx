@@ -1,14 +1,9 @@
 import React, { useEffect } from 'react';
-import { Form, Select, Space, Button, DatePicker } from 'antd';
+import { Form, Select, Space, Button } from 'antd';
 import { deliveryMethods, categoryOptions } from '../../../utils/constants';
-import dayjs from 'dayjs';
-
-interface ProductFilterProps {
-  onFilter: (values: any) => void;
-}
+import type { ProductFilterProps } from '../../../types/product';
 
 const { Option } = Select;
-const { RangePicker } = DatePicker;
 
 // 完整度选项
 const COMPLETENESS_OPTIONS = [
@@ -52,25 +47,19 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
       category: 'all',
       completeness: 'all',
       specType: 'all',
-      deliveryMethod: 'all',
-      dateRange: null
+      deliveryMethod: 'all'
     });
     onFilter({});
   };
 
   // 处理表单值变化
   const handleValuesChange = (changedValues: any, allValues: any) => {
-    // 处理全选值和日期范围
+    // 处理全选值
     const processedValues = Object.entries(allValues).reduce((acc: any, [key, value]) => {
       if (value === 'all') {
         return acc;
       }
-      if (key === 'dateRange' && value) {
-        acc.startDate = value[0].format('YYYY-MM-DD');
-        acc.endDate = value[1].format('YYYY-MM-DD');
-      } else if (key !== 'dateRange') {
-        acc[key] = value;
-      }
+      acc[key] = value;
       return acc;
     }, {});
     
@@ -83,8 +72,7 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
       category: 'all',
       completeness: 'all',
       specType: 'all',
-      deliveryMethod: 'all',
-      dateRange: null
+      deliveryMethod: 'all'
     });
   }, [form]);
 
@@ -149,22 +137,6 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
             </Option>
           ))}
         </Select>
-      </Form.Item>
-
-      {/* 创建日期筛选 */}
-      <Form.Item name="dateRange" label="创建日期">
-        <RangePicker
-          style={{ width: 260 }}
-          placeholder={['开始日期', '结束日期']}
-          allowClear
-          ranges={{
-            '今天': [dayjs().startOf('day'), dayjs().endOf('day')],
-            '本周': [dayjs().startOf('week'), dayjs().endOf('week')],
-            '本月': [dayjs().startOf('month'), dayjs().endOf('month')],
-            '最近7天': [dayjs().subtract(6, 'day'), dayjs()],
-            '最近30天': [dayjs().subtract(29, 'day'), dayjs()]
-          }}
-        />
       </Form.Item>
 
       {/* 操作按钮 */}
