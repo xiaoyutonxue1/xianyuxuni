@@ -56,16 +56,22 @@ export interface ProductSelection {
   createdAt: string;
   status: ProductSelectionStatus;
   source: 'manual' | 'crawler';
+  source_status: ProductSourceStatus;
   hasSpecs: boolean;
   specs?: ProductSpec[];
   deliveryMethod?: DeliveryMethod;
   deliveryInfo?: string;
   productUrl?: string;
-  errorMessage?: string;
-  completeness?: number;
-  distributedAt?: string;
   coverImage?: string;
-  source_status: ProductSourceStatus;  // 创建状态
+  commonImages?: {
+    id: string;
+    url: string;
+    thumbUrl?: string;
+    type: 'common';
+    sort: number;
+    createdAt: string;
+    size?: number;
+  }[];
 }
 
 // 商品状态类型
@@ -133,6 +139,14 @@ export interface CreateSelectionRequest {
   productUrl?: string;
   coverImage?: string;
   method: 'manual' | 'crawler';
+  commonImages?: {
+    id: string;
+    url: string;
+    type: 'common';
+    sort: number;
+    createdAt: string;
+    size?: number;
+  }[];
 }
 
 // 分配选品请求

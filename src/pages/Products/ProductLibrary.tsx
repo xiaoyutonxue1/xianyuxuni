@@ -207,6 +207,15 @@ const ProductLibrary: React.FC = () => {
         deliveryInfo: values.deliveryInfo,
         productUrl: values.productUrl,
         coverImage: values.coverImage,
+        commonImages: values.commonImages?.map((img: any) => ({
+          id: img.id,
+          url: img.url,  // 原图 URL
+          thumbUrl: img.thumbUrl,  // 缩略图 URL
+          type: 'common' as const,
+          sort: values.commonImages.indexOf(img),
+          createdAt: new Date().toISOString(),
+          size: img.size
+        }))
       };
 
       // 添加到选品库
@@ -230,11 +239,21 @@ const ProductLibrary: React.FC = () => {
     try {
       setLoading(true);
       // 更新选品数据
-      addSelection({
+      const updatedSelection = {
         ...selectedProduct,
         ...values,
+        commonImages: values.commonImages?.map((img: any) => ({
+          id: img.id,
+          url: img.url,  // 原图 URL
+          thumbUrl: img.thumbUrl,  // 缩略图 URL
+          type: 'common' as const,
+          sort: values.commonImages.indexOf(img),
+          createdAt: img.createdAt || new Date().toISOString(),
+          size: img.size
+        })),
         lastUpdated: new Date().toISOString()
-      });
+      };
+      addSelection(updatedSelection);
       message.success('选品更新成功');
       setIsEditModalVisible(false);
       setSelectedProduct(null);
