@@ -12,11 +12,11 @@ export type ProductCategory =
 
 // 发货方式类型
 export type DeliveryMethod = 
-  | 'baiduDisk'          // 百度网盘链接
-  | 'baiduDiskGroup'     // 百度网盘群链接
-  | 'baiduDiskGroupCode' // 百度网盘群口令
-  | 'quarkDisk'          // 夸克网盘链接
-  | 'quarkDiskGroup';    // 夸克网盘群链接
+  | '百度网盘链接'
+  | '百度网盘群链接'
+  | '百度网盘群口令'
+  | '夸克网盘链接'
+  | '夸克网盘群链接';
 
 // 商品规格
 export interface ProductSpec {
@@ -107,9 +107,12 @@ export interface Product {
   status: ProductStatus;
   distributedAt: string;
   lastUpdated: string;
+  publishedAt?: string;     // 发布时间
   distributedTitle?: string;
   distributedContent?: string;
   coverImage?: string;
+  deliveryMethod?: DeliveryMethod;  // 发货方式
+  deliveryInfo?: string;    // 发货信息
   commonImages?: Array<{
     id: string;
     url: string;

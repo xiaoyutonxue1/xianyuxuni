@@ -50,8 +50,13 @@ const ProductManagement: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<Product[]>([]);
   
   // 使用 store
-  const { products, updateProduct, addProducts, removeProduct } = useProductStore();
+  const { products, updateProduct, addProducts, removeProduct, updateDeliveryMethods } = useProductStore();
   const { productSettings, storeAccounts } = useSettingsStore();
+
+  // 更新发货方式格式
+  useEffect(() => {
+    updateDeliveryMethods();
+  }, []);
 
   // 过滤和搜索商品
   const getFilteredProducts = () => {
@@ -330,7 +335,7 @@ const ProductManagement: React.FC = () => {
           const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
 
           // 创建并写入各个信息文件
-          const files = {
+          const files: Record<string, string> = {
             '商品名称.txt': product.name || '',
             '分类.txt': product.category || '',
             '价格.txt': product.price?.toString() || '0',
@@ -343,6 +348,12 @@ const ProductManagement: React.FC = () => {
             '商品描述.txt': product.distributedContent || '',
             '发布店铺.txt': `店铺名称：${storeName}\n平台：${store?.platform || '未知平台'}`
           };
+
+          // 如果有发货方式和发货信息，添加对应的文件
+          if (product.deliveryMethod) {
+            const deliveryFileName = `${product.deliveryMethod}.txt`;
+            files[deliveryFileName] = product.deliveryInfo || '';
+          }
 
           // 写入所有文本文件
           for (const [fileName, content] of Object.entries(files)) {

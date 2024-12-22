@@ -1,5 +1,5 @@
 import create from 'zustand';
-import type { Product, ProductSelection } from '../types/product';
+import type { Product, ProductSelection, DeliveryMethod } from '../types/product';
 
 // 从localStorage获取初始数据
 const getInitialState = () => {
@@ -42,6 +42,7 @@ export interface ProductStore {
   setSelections: (selections: ProductSelection[]) => void;
   updateSelection: (selection: ProductSelection) => void;
   addSelection: (selection: ProductSelection) => void;
+  updateDeliveryMethods: () => void;
 }
 
 const useProductStore = create<ProductStore>((set) => {
@@ -51,6 +52,60 @@ const useProductStore = create<ProductStore>((set) => {
   return {
     ...initialState,
     
+    // 更新所有商品的发货方式格式
+    updateDeliveryMethods: () => set((state) => {
+      const deliveryMethodMap: Record<string, DeliveryMethod> = {
+        'baiduDisk': '百度网盘链接',
+        'baiduDiskGroup': '百度网盘群链接',
+        'baiduDiskGroupCode': '百度网盘群口令',
+        'quarkDisk': '夸克网盘链接',
+        'quarkDiskGroup': '夸克网盘群链接'
+      };
+
+      const updatedProducts = state.products.map(product => {
+        if (product.deliveryMethod && product.deliveryMethod in deliveryMethodMap) {
+          return {
+            ...product,
+            deliveryMethod: deliveryMethodMap[product.deliveryMethod as keyof typeof deliveryMethodMap],
+            lastUpdated: new Date().toISOString()
+          };
+        }
+        return product;
+      });
+
+      const updatedSelections = state.selections.map(selection => {
+        if (selection.deliveryMethod && selection.deliveryMethod in deliveryMethodMap) {
+          return {
+            ...selection,
+            deliveryMethod: deliveryMethodMap[selection.deliveryMethod as keyof typeof deliveryMethodMap]
+          };
+        }
+        if (selection.specs) {
+          return {
+            ...selection,
+            specs: selection.specs.map(spec => {
+              if (spec.deliveryMethod && spec.deliveryMethod in deliveryMethodMap) {
+                return {
+                  ...spec,
+                  deliveryMethod: deliveryMethodMap[spec.deliveryMethod as keyof typeof deliveryMethodMap]
+                };
+              }
+              return spec;
+            })
+          };
+        }
+        return selection;
+      });
+
+      const newState = {
+        ...state,
+        products: updatedProducts,
+        selections: updatedSelections
+      };
+      saveToLocalStorage(newState);
+      return newState;
+    }),
+
     addProducts: (products) => set((state) => {
       const newState = {
         ...state,
