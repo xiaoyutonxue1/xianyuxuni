@@ -491,7 +491,7 @@ const ProductAllocation: React.FC = () => {
                 '近三个月': [dayjs().subtract(89, 'day').startOf('day'), dayjs().endOf('day')],
                 '近半年': [dayjs().subtract(179, 'day').startOf('day'), dayjs().endOf('day')],
                 '近一年': [dayjs().subtract(364, 'day').startOf('day'), dayjs().endOf('day')],
-                '���部': [dayjs('2000-01-01').startOf('day'), dayjs().endOf('day')],
+                '全部': [dayjs('2000-01-01').startOf('day'), dayjs().endOf('day')],
                 '本月': [dayjs().startOf('month'), dayjs().endOf('day')],
                 '上个月': [dayjs().subtract(1, 'month').startOf('month'), dayjs().subtract(1, 'month').endOf('month')],
               }}

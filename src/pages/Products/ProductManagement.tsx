@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover } from 'antd';
-import { PlusOutlined, EditOutlined, StopOutlined, CalendarOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown } from 'antd';
+import { PlusOutlined, EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons';
 import EditProductForm from './EditProductForm';
 import type { Product, ProductSelection, ProductSourceStatus, ProductStatus, ProductCategory } from '../../types/product';
 import useProductStore from '../../store/productStore';
@@ -11,6 +11,13 @@ import type { Dayjs } from 'dayjs';
 
 const { Search } = Input;
 const { RangePicker } = DatePicker;
+
+// 添加 File System Access API 的类型声明
+declare global {
+  interface Window {
+    showDirectoryPicker(options?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>;
+  }
+}
 
 // 将Product类型转换为ProductSelection类型
 const convertProductToSelection = (product: Product): ProductSelection => {
@@ -44,7 +51,7 @@ const ProductManagement: React.FC = () => {
   
   // 使用 store
   const { products, updateProduct, addProducts, removeProduct } = useProductStore();
-  const { productSettings } = useSettingsStore();
+  const { productSettings, storeAccounts } = useSettingsStore();
 
   // 过滤和搜索商品
   const getFilteredProducts = () => {
@@ -253,6 +260,174 @@ const ProductManagement: React.FC = () => {
     });
   };
 
+  // 处理图片保存
+  const saveImage = async (imageUrl: string, folderHandle: FileSystemDirectoryHandle, fileName: string) => {
+    try {
+      console.log(`开始保存图片: ${fileName}, URL: ${imageUrl}`);
+      let blob: Blob;
+      
+      // 检查是否是 base64 图片
+      if (imageUrl.startsWith('data:image')) {
+        console.log(`${fileName} 是 base64 图片`);
+        // 将 base64 转换为 blob
+        const response = await fetch(imageUrl);
+        blob = await response.blob();
+      } else {
+        console.log(`${fileName} 是 URL 图片`);
+        // 普通 URL 图片
+        try {
+          const response = await fetch(imageUrl, {
+            mode: 'cors',
+            headers: {
+              'Access-Control-Allow-Origin': '*'
+            }
+          });
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          blob = await response.blob();
+          console.log(`${fileName} 获取成功，大小: ${blob.size} 字节`);
+        } catch (error) {
+          console.error(`获取图片失败: ${imageUrl}`, error);
+          message.error(`获取图片失败: ${fileName}`);
+          return;
+        }
+      }
+
+      // 保存图片文件
+      const imageFileHandle = await folderHandle.getFileHandle(fileName, { create: true });
+      const imageWritable = await imageFileHandle.createWritable();
+      await imageWritable.write(blob);
+      await imageWritable.close();
+
+      console.log(`图片保存成功: ${fileName}`);
+    } catch (error) {
+      console.error(`保存图片失败: ${fileName}`, error);
+      message.error(`保存图片失败: ${fileName}`);
+    }
+  };
+
+  // 处理批量导出
+  const handleBatchExport = async () => {
+    try {
+      // 请求用户选择导出目录
+      const dirHandle = await window.showDirectoryPicker({
+        mode: 'readwrite'
+      });
+
+      // 为每个选中的商品创建文件夹和文件
+      for (const product of selectedRows) {
+        try {
+          console.log('开始导出商品:', product);
+          
+          // 获取店铺信息
+          const store = storeAccounts.find(store => store.id === product.storeId);
+          const storeName = store?.name || '未知店铺';
+          
+          // 创建商品文件夹（格式：商品名称【店铺名称】）
+          const folderName = `${product.name}【${storeName}】`.replace(/[\\/:*?"<>|]/g, '_');
+          console.log('创建文件夹:', folderName);
+          const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
+
+          // 创建并写入各个信息文件
+          const files = {
+            '商品名称.txt': product.name || '',
+            '分类.txt': product.category || '',
+            '价格.txt': product.price?.toString() || '0',
+            '库存.txt': product.stock?.toString() || '0',
+            '状态.txt': product.status === 'draft' ? '草稿' : 
+                      product.status === 'published' ? '已发布' : 
+                      product.status === 'pending' ? '待发布' :
+                      product.status === 'failed' ? '发布失败' : '已下架',
+            '商品标题.txt': product.distributedTitle || '',
+            '商品描述.txt': product.distributedContent || '',
+            '发布店铺.txt': `店铺名称：${storeName}\n平台：${store?.platform || '未知平台'}`
+          };
+
+          // 写入所有文本文件
+          for (const [fileName, content] of Object.entries(files)) {
+            const fileHandle = await folderHandle.getFileHandle(fileName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(new TextEncoder().encode(content));
+            await writable.close();
+          }
+
+          // 创建图片文件夹
+          console.log('创建图片文件夹');
+          const imagesFolderHandle = await folderHandle.getDirectoryHandle('图片', { create: true });
+
+          // 保存封面图片
+          if (product.coverImage) {
+            console.log('发现封面图片:', product.coverImage);
+            await saveImage(product.coverImage, imagesFolderHandle, '封面图片.jpg');
+          } else {
+            console.log('没有封面图片');
+          }
+
+          // 保存公共图片
+          if (product.commonImages && product.commonImages.length > 0) {
+            console.log(`发现 ${product.commonImages.length} 张公共图片`);
+            for (let i = 0; i < product.commonImages.length; i++) {
+              const image = product.commonImages[i];
+              if (image.url) {
+                console.log(`处理第 ${i + 1} 张公共图片:`, image.url);
+                await saveImage(image.url, imagesFolderHandle, `公共图片_${i + 1}.jpg`);
+              } else {
+                console.log(`第 ${i + 1} 张公共图片没有 URL`);
+              }
+            }
+          } else {
+            console.log('没有公共图片');
+          }
+
+          console.log(`商品导出成功: ${product.name}`);
+        } catch (error) {
+          console.error(`导出商品失败: ${product.name}`, error);
+          message.error(`导出商品失败: ${product.name}`);
+        }
+      }
+
+      message.success('导出完成');
+    } catch (error) {
+      console.error('Export error:', error);
+      if (error instanceof Error && error.name === 'SecurityError') {
+        message.error('请允许访问文件系统权限');
+      } else {
+        message.error('导出失败');
+      }
+    }
+  };
+
+  // 批量操作菜单项
+  const batchOperationItems = {
+    items: [
+      {
+        key: 'export',
+        label: (
+          <Button type="text" icon={<ExportOutlined />} onClick={handleBatchExport}>
+            批量导出
+          </Button>
+        )
+      },
+      {
+        key: 'offline',
+        label: (
+          <Button type="text" danger icon={<StopOutlined />} onClick={handleBatchOffline}>
+            批量下架
+          </Button>
+        )
+      },
+      {
+        key: 'delete',
+        label: (
+          <Button type="text" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
+            批量删除
+          </Button>
+        )
+      }
+    ]
+  };
+
   const columns: ColumnsType<Product> = [
     {
       title: '商品信息',
@@ -268,6 +443,25 @@ const ProductManagement: React.FC = () => {
           </Space>
         </Space>
       ),
+    },
+    {
+      title: '店铺',
+      key: 'store',
+      width: 150,
+      render: (_, record) => {
+        const store = storeAccounts.find(store => store.id === record.storeId);
+        return (
+          <Space direction="vertical" size={0}>
+            <span>{store?.name || '未知店铺'}</span>
+            <Tag color="blue">{store?.platform || '未知平台'}</Tag>
+          </Space>
+        );
+      },
+      filters: storeAccounts.map(store => ({
+        text: store.name,
+        value: store.id,
+      })),
+      onFilter: (value, record) => record.storeId === value,
     },
     {
       title: '头图',
@@ -290,8 +484,8 @@ const ProductManagement: React.FC = () => {
       key: 'priceAndStock',
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <span className="font-medium">¥{record.price}</span>
-          <span className="text-gray-500">库存: {record.stock}</span>
+          <span className="font-medium text-lg">¥{record.price?.toFixed(2) || '0.00'}</span>
+          <span className="text-gray-500">库存: {record.stock || 0}</span>
         </Space>
       ),
       sorter: (a, b) => {
@@ -396,14 +590,14 @@ const ProductManagement: React.FC = () => {
         <div className="flex justify-between mb-4">
           <Space>
             {selectedRowKeys.length > 0 && (
-              <Space>
-                <Button danger onClick={handleBatchOffline}>
-                  批量下架
+              <Dropdown menu={batchOperationItems} placement="bottomLeft">
+                <Button>
+                  <Space>
+                    批量操作
+                    <DownOutlined />
+                  </Space>
                 </Button>
-                <Button danger type="primary" onClick={handleBatchDelete}>
-                  批量删除
-                </Button>
-              </Space>
+              </Dropdown>
             )}
             <Select
               placeholder="商品状态"

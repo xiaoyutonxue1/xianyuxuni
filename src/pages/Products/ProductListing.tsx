@@ -1,12 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, message, Tooltip, InputNumber } from 'antd';
-import { EditOutlined, DeleteOutlined, CopyOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, message, Tooltip, InputNumber, Dropdown } from 'antd';
+import { EditOutlined, DeleteOutlined, CopyOutlined, ExportOutlined, DownOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import useSettingsStore from '../../store/settingsStore';
 import type { StoreAccount } from '../../store/settingsStore';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../../services/productService';
-import type { ProductListingItem } from '../../types/product';
+import type { Product } from '../../types/product';
 import type { ProductQueryParams } from '../../services/productService';
+
+interface ProductListingItem extends Product {
+  store: string;
+  originalPrice: number;
+  price: number;
+  stock: number;
+  sales: number;
+  status: 'draft' | 'selling' | 'offline';
+  createdAt: string;
+  updatedAt: string;
+}
 
 const { Search } = Input;
 
@@ -130,6 +141,86 @@ const ProductListing: React.FC = () => {
     }
   };
 
+  // 批量导出商品
+  const handleBatchExport = () => {
+    try {
+      // 准备导出数据
+      const exportData = selectedProducts.map(product => ({
+        商品名称: product.name,
+        分类: product.category,
+        原价: product.originalPrice,
+        售价: product.price,
+        库存: product.stock,
+        销量: product.sales,
+        状态: product.status === 'draft' ? '草稿' : 
+              product.status === 'selling' ? '在售' : '下架',
+        创建时间: new Date(product.createdAt).toLocaleString(),
+        更新时间: new Date(product.updatedAt).toLocaleString(),
+      }));
+
+      // 转换为CSV
+      const headers = Object.keys(exportData[0]);
+      const csvContent = [
+        headers.join(','),
+        ...exportData.map(row => 
+          headers.map(header => {
+            const value = row[header as keyof typeof row];
+            return typeof value === 'string' && value.includes(',') 
+              ? `"${value}"`
+              : value;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // 创建下载
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `商品数据_${new Date().toLocaleDateString()}.csv`;
+      link.click();
+      
+      message.success('导出成功');
+    } catch (error) {
+      message.error('导出失败');
+    }
+  };
+
+  // 批量操作菜单
+  const batchOperationItems = [
+    {
+      key: 'export',
+      label: '导出数据',
+      icon: <ExportOutlined />,
+      onClick: handleBatchExport,
+    },
+    {
+      key: 'delete',
+      label: '批量删除',
+      icon: <DeleteOutlined />,
+      onClick: () => {
+        if (selectedRowKeys.length === 0) {
+          message.warning('请先选择要删除的商品');
+          return;
+        }
+        Modal.confirm({
+          title: '批量删除',
+          content: `确定要删除选中的 ${selectedRowKeys.length} 个商品吗？删除后不可恢复。`,
+          async onOk() {
+            try {
+              await Promise.all(selectedRowKeys.map(id => deleteProduct(id as string)));
+              message.success('删除成功');
+              setSelectedRowKeys([]);
+              setSelectedProducts([]);
+              fetchProducts();
+            } catch (error) {
+              message.error('删除失败');
+            }
+          },
+        });
+      },
+    },
+  ];
+
   const columns: ColumnsType<ProductListingItem> = [
     {
       title: '商品名称',
@@ -209,6 +300,17 @@ const ProductListing: React.FC = () => {
       <Card>
         <div className="flex justify-between">
           <Space>
+            <Dropdown 
+              menu={{ items: batchOperationItems }} 
+              disabled={selectedRowKeys.length === 0}
+            >
+              <Button>
+                <Space>
+                  批量操作
+                  <DownOutlined />
+                </Space>
+              </Button>
+            </Dropdown>
             <Select
               placeholder="选择分类"
               style={{ width: 200 }}

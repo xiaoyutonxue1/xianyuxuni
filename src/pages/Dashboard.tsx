@@ -27,7 +27,7 @@ const Dashboard: React.FC = () => {
   const [selectedStore, setSelectedStore] = useState<string>('all');
   const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d' | '180d' | '365d'>('30d');
 
-  // 过滤当前选中店铺���商品
+  // 过滤当前选中店铺的商品
   const filteredProducts = selectedStore === 'all' 
     ? products 
     : products.filter(p => p.storeId === selectedStore);
@@ -226,7 +226,7 @@ const Dashboard: React.FC = () => {
       ),
     },
     {
-      title: '完整���',
+      title: '完整度',
       key: 'completeness',
       render: (record: any) => (
         <Progress 

@@ -96,29 +96,29 @@ export interface Product {
   name: string;
   category: ProductCategory;
   description: string;
-  keywords?: string[];
-  remark?: string;
   price: number;
   stock: number;
   createdAt: string;
   source: 'manual' | 'crawler';
   hasSpecs: boolean;
-  specs?: ProductSpec[];
-  deliveryMethod?: DeliveryMethod;
-  deliveryInfo?: string;
-  productUrl?: string;
-  errorMessage?: string;
-  completeness?: number;
-  selectionId: string;           // 关联的选品ID
-  storeId: string;              // 关联的店铺ID
-  templateId: string;           // 使用的模板ID
-  distributedTitle: string;     // 使用模板后的标题
-  distributedContent: string;   // 使用模板后的文案
-  status: ProductStatus;        // 商品状态
-  distributedAt: string;       // 分配时间
-  publishedAt?: string;        // 发布时间
-  lastUpdated: string;         // 最后更新时间
-  coverImage?: string;         // 商品头图
+  selectionId: string;
+  storeId: string;
+  templateId: string;
+  status: ProductStatus;
+  distributedAt: string;
+  lastUpdated: string;
+  distributedTitle?: string;
+  distributedContent?: string;
+  coverImage?: string;
+  commonImages?: Array<{
+    id: string;
+    url: string;
+    thumbUrl?: string;
+    type: 'common';
+    sort: number;
+    createdAt: string;
+    size?: number;
+  }>;
 }
 
 // 创建选品请求
