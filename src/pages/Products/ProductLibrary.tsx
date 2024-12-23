@@ -17,6 +17,7 @@ import {
   SyncOutlined,
   SearchOutlined,
   CalendarOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
 import useSelectionStore from '../../store/selectionStore';
@@ -151,12 +152,10 @@ const ProductLibrary: React.FC = () => {
     
     confirmModalRef.current = confirm({
       title: '确认删除',
-      icon: <ExclamationCircleFilled />,
-      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可��！`,
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要删除选中的 ${ids.length} 个商品吗？此操作不可恢复！`,
       okText: '确定',
-      okType: 'danger',
       cancelText: '取消',
-      centered: true,
       onOk: async () => {
         try {
           setLoading(true);

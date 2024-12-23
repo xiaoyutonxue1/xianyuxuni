@@ -14,6 +14,30 @@ interface CreateProductFormProps {
   initialValues?: ProductSelection;
 }
 
+// 添加发货方式对应的提示和验证规则
+const deliveryInfoConfig: Record<string, { placeholder: string; rules: any[] }> = {
+  baiduDisk: {
+    placeholder: '请输入百度网盘链接，格式：链接 提取码',
+    rules: []
+  },
+  baiduDiskGroup: {
+    placeholder: '请输入百度网盘群链接，格式：群链接',
+    rules: []
+  },
+  baiduDiskGroupCode: {
+    placeholder: '请输入百度网盘群口令',
+    rules: []
+  },
+  quarkDisk: {
+    placeholder: '请输入夸克网盘链接，格式：链接 提取码',
+    rules: []
+  },
+  quarkDiskGroup: {
+    placeholder: '请输入夸克网盘群链接',
+    rules: []
+  }
+} as const;
+
 const CreateProductForm: React.FC<CreateProductFormProps> = ({
   onSubmit,
   onCancel,
@@ -42,6 +66,18 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
   const [missingFields, setMissingFields] = useState<string[]>(getMissingFields(initialValues || {}));
 
   const { productSettings } = useSettingsStore();
+
+  // 添加发货方式状态
+  const [currentDeliveryMethod, setCurrentDeliveryMethod] = useState<string>(
+    initialValues?.deliveryMethod || 'baiduDisk'
+  );
+
+  // 处理发货方式变化
+  const handleDeliveryMethodChange = (value: string) => {
+    setCurrentDeliveryMethod(value);
+    // 清空发货信息
+    form.setFieldValue('deliveryInfo', '');
+  };
 
   // 初始化表单数据
   useEffect(() => {
@@ -178,6 +214,8 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
     const values = form.getFieldsValue();
     const currentData = {
       ...values,
+      source: createMode,
+      method: createMode,
       hasSpecs,
       commonImages: fileList
     };
@@ -203,7 +241,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
         deliveryInfo: undefined,
         specs: [{ 
           name: '发货网盘',
-          stock: 999,
+          stock: undefined,
           deliveryMethod: 'baiduDisk',
           deliveryInfo: ''
         }]
@@ -213,10 +251,9 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
         specs: undefined,
         deliveryMethod: 'baiduDisk',
         deliveryInfo: '',
-        stock: 999
+        stock: undefined
       });
     }
-    updateCompleteness();
   };
 
   // 处理表单提交
@@ -225,6 +262,8 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
       // 添加公共图片数据
       const submitData = {
         ...values,
+        source: createMode,
+        method: createMode,
         commonImages: await Promise.all(fileList.map(async (file) => ({
           id: file.uid,
           url: file.originFileObj ? await getBase64(file.originFileObj) : (file.url || ''),
@@ -236,6 +275,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
         })))
       };
 
+      console.log('Form submit data:', submitData);
       await onSubmit(submitData);
     } catch (error) {
       message.error('创建失败');
@@ -244,8 +284,12 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
 
   // 处理创建模式切换
   const handleModeChange = (mode: 'manual' | 'crawler') => {
+    console.log('Mode changed to:', mode);
     setCreateMode(mode);
-    form.setFieldsValue({ method: mode });
+    form.setFieldsValue({ 
+      source: mode,
+      method: mode 
+    });
     updateCompleteness();
   };
 
@@ -256,7 +300,12 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
         layout="vertical"
         onFinish={handleSubmit}
         onValuesChange={handleFormChange}
-        initialValues={mode === 'create' ? { method: 'manual' } : undefined}
+        initialValues={{
+          source: 'manual',
+          method: 'manual',
+          hasSpecs: false,
+          ...initialValues,
+        }}
       >
         <div className="mb-4 flex justify-between items-center">
           <span className="text-lg font-medium">{mode === 'create' ? '新增选品' : '编辑选品'}</span>
@@ -329,27 +378,30 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
 
         {createMode === 'manual' ? (
           <>
-            <Form.Item
-              name="name"
-              label="商品名称"
-              rules={[{ required: true, message: '请输入商品名称' }]}
-            >
-              <Input placeholder="请输入商品名称" />
-            </Form.Item>
+            {/* 商品名称和分类放在同一行 */}
+            <div className="grid grid-cols-2 gap-4">
+              <Form.Item
+                name="name"
+                label="商品名称"
+                rules={[{ required: true, message: '请输入商品名称' }]}
+              >
+                <Input placeholder="请输入商品名称" />
+              </Form.Item>
 
-            <Form.Item
-              name="category"
-              label="商品分类"
-              rules={[{ required: true, message: '请选择商品分类' }]}
-            >
-              <Select placeholder="请选择商品分类">
-                {productSettings?.categories?.map(category => (
-                  <Select.Option key={category} value={category}>
-                    {category}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
+              <Form.Item
+                name="category"
+                label="商品分类"
+                rules={[{ required: true, message: '请选择商品分类' }]}
+              >
+                <Select placeholder="请选择商品分类">
+                  {productSettings?.categories?.map(category => (
+                    <Select.Option key={category} value={category}>
+                      {category}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </div>
 
             {/* 公共图片上传 */}
             <Form.Item
@@ -415,14 +467,14 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
             {/* 单规格信息 */}
             {!hasSpecs && (
               <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <Form.Item
                     name="price"
                     label="售价(元)"
                   >
                     <InputNumber
                       min={0}
-                      placeholder="请入售价"
+                      placeholder="请输入售价"
                       style={{ width: '100%' }}
                     />
                   </Form.Item>
@@ -435,15 +487,20 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                       min={0}
                       placeholder="请输入库存"
                       style={{ width: '100%' }}
-                      defaultValue={999}
                     />
                   </Form.Item>
+                </div>
 
+                <div className="grid grid-cols-4 gap-4">
                   <Form.Item
                     name="deliveryMethod"
                     label="发货方式"
+                    className="col-span-1"
                   >
-                    <Select placeholder="请选择发货方式">
+                    <Select 
+                      placeholder="请选择发货方式"
+                      onChange={handleDeliveryMethodChange}
+                    >
                       {deliveryMethods.map(method => (
                         <Select.Option key={method.value} value={method.value}>
                           {method.label}
@@ -451,23 +508,39 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                       ))}
                     </Select>
                   </Form.Item>
-                </div>
 
-                <Form.Item
-                  name="deliveryInfo"
-                  label="发货信息"
-                >
-                  <Input.TextArea
-                    placeholder="请输入发货信息"
-                    rows={3}
-                  />
-                </Form.Item>
+                  <Form.Item
+                    name="deliveryInfo"
+                    label={
+                      <Space>
+                        发货信息
+                        <Tooltip title={deliveryInfoConfig[currentDeliveryMethod as keyof typeof deliveryInfoConfig]?.placeholder}>
+                          <InfoCircleFilled style={{ color: '#1890ff' }} />
+                        </Tooltip>
+                      </Space>
+                    }
+                    rules={deliveryInfoConfig[currentDeliveryMethod as keyof typeof deliveryInfoConfig]?.rules}
+                    className="col-span-3"
+                  >
+                    <Input.TextArea
+                      placeholder={deliveryInfoConfig[currentDeliveryMethod as keyof typeof deliveryInfoConfig]?.placeholder}
+                      rows={3}
+                    />
+                  </Form.Item>
+                </div>
               </div>
             )}
 
             {/* 多规格表单 */}
             {hasSpecs && (
-              <Form.List name="specs">
+              <Form.List name="specs"
+                initialValue={[{ 
+                  name: '默认规格',
+                  stock: undefined,
+                  deliveryMethod: 'baiduDisk',
+                  deliveryInfo: ''
+                }]}
+              >
                 {(fields, { add, remove }) => (
                   <div className="space-y-4">
                     {fields.map((field, index) => (
@@ -495,7 +568,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                             <Input placeholder="请输入规格名称" />
                           </Form.Item>
 
-                          <div className="grid grid-cols-3 gap-4">
+                          <div className="grid grid-cols-2 gap-4">
                             <Form.Item
                               {...field}
                               name={[field.name, 'price']}
@@ -517,16 +590,25 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                                 min={0}
                                 placeholder="请输入库存"
                                 style={{ width: '100%' }}
-                                defaultValue={999}
                               />
                             </Form.Item>
+                          </div>
 
+                          <div className="grid grid-cols-4 gap-4">
                             <Form.Item
                               {...field}
                               name={[field.name, 'deliveryMethod']}
                               label="发货方式"
+                              className="col-span-1"
                             >
-                              <Select placeholder="请选择发货方式">
+                              <Select 
+                                placeholder="请选择发货方式"
+                                onChange={(value) => {
+                                  const specs = form.getFieldValue('specs');
+                                  specs[index].deliveryInfo = '';
+                                  form.setFieldsValue({ specs });
+                                }}
+                              >
                                 {deliveryMethods.map(method => (
                                   <Select.Option key={method.value} value={method.value}>
                                     {method.label}
@@ -534,18 +616,39 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                                 ))}
                               </Select>
                             </Form.Item>
-                          </div>
 
-                          <Form.Item
-                            {...field}
-                            name={[field.name, 'deliveryInfo']}
-                            label="发货信息"
-                          >
-                            <Input.TextArea
-                              placeholder="请输入发货信息"
-                              rows={3}
-                            />
-                          </Form.Item>
+                            <Form.Item
+                              {...field}
+                              name={[field.name, 'deliveryInfo']}
+                              label={
+                                <Space>
+                                  发货信息
+                                  <Tooltip title={
+                                    deliveryInfoConfig[
+                                      form.getFieldValue(['specs', index, 'deliveryMethod']) || 'baiduDisk'
+                                    ]?.placeholder
+                                  }>
+                                    <InfoCircleFilled style={{ color: '#1890ff' }} />
+                                  </Tooltip>
+                                </Space>
+                              }
+                              rules={
+                                deliveryInfoConfig[
+                                  form.getFieldValue(['specs', index, 'deliveryMethod']) || 'baiduDisk'
+                                ]?.rules
+                              }
+                              className="col-span-3"
+                            >
+                              <Input.TextArea
+                                placeholder={
+                                  deliveryInfoConfig[
+                                    form.getFieldValue(['specs', index, 'deliveryMethod']) || 'baiduDisk'
+                                  ]?.placeholder
+                                }
+                                rows={3}
+                              />
+                            </Form.Item>
+                          </div>
                         </div>
                       </div>
                     ))}

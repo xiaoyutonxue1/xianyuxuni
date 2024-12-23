@@ -1,348 +1,148 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, message, Tooltip, InputNumber, Dropdown } from 'antd';
 import { EditOutlined, DeleteOutlined, CopyOutlined, ExportOutlined, DownOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import useSettingsStore from '../../store/settingsStore';
-import type { StoreAccount } from '../../store/settingsStore';
-import { getProducts, createProduct, updateProduct, deleteProduct } from '../../services/productService';
-import type { Product, ProductSelection, ProductStatus, ProductSourceStatus, ProductSelectionStatus } from '../../types/product';
-import type { ProductQueryParams } from '../../services/productService';
-import EditSelectionForm from './EditSelectionForm';
-
-interface ProductListingItem extends Omit<Product, 'status'> {
-  store: string;
-  originalPrice: number;
-  price: number;
-  stock: number;
-  sales: number;
-  status: 'draft' | 'selling' | 'offline';
-  createdAt: string;
-  updatedAt: string;
-  source_status: ProductSourceStatus;
-}
-
-// 将商品状态转换为选品状态
-const convertToSelectionStatus = (status: 'draft' | 'selling' | 'offline'): ProductSelectionStatus => {
-  switch (status) {
-    case 'draft':
-    case 'selling':
-      return 'pending';
-    case 'offline':
-      return 'inactive';
-    default:
-      return 'pending';
-  }
-};
-
-// 将字符串转换为数字
-const parseNumber = (value: string | number): number => {
-  if (typeof value === 'number') return value;
-  const num = Number(value);
-  return isNaN(num) ? 0 : num;
-};
-
-// 将API返回的数据转换为正确的类型
-const convertApiData = (item: any): ProductListingItem => ({
-  ...item,
-  originalPrice: parseNumber(item.originalPrice),
-  price: parseNumber(item.price),
-  stock: parseNumber(item.stock),
-  sales: parseNumber(item.sales),
-});
+import { calculateCompleteness } from '../../utils/productCompleteness';
+import EditProductForm from './EditProductForm';
+import type { Product } from '../../types/product';
 
 const { Search } = Input;
 
+// 添加完整度筛选选项
+const completenessOptions = [
+  { label: '全部完整度', value: '' },
+  { label: '100% 完整', value: '100' },
+  { label: '80-99% 较完整', value: '80-99' },
+  { label: '60-79% 部分完整', value: '60-79' },
+  { label: '60% 以下 待完善', value: '0-59' }
+];
+
 const ProductListing: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ProductListingItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [selectedProducts, setSelectedProducts] = useState<ProductListingItem[]>([]);
+  const [currentItem, setCurrentItem] = useState<Product>();
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [currentItem, setCurrentItem] = useState<ProductListingItem>();
-  const { storeAccounts } = useSettingsStore();
+  const [searchText, setSearchText] = useState('');
+  const [completenessFilter, setCompletenessFilter] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<Product[]>([]);
 
-  // 获取商品列表
-  const fetchProducts = async (params: ProductQueryParams = { page: 1, pageSize: 10 }) => {
-    try {
-      setLoading(true);
-      const response = await getProducts(params);
-      setData(response.items.map(convertApiData));
-      setTotal(response.total);
-    } catch (error) {
-      message.error('获取商品列表失败');
-    } finally {
-      setLoading(false);
+  // 修改筛选逻辑
+  const filteredData = useMemo(() => {
+    let result = [...data];
+
+    // 应用完整度筛选
+    if (completenessFilter) {
+      switch (completenessFilter) {
+        case '100':
+          result = result.filter(item => calculateCompleteness(item) === 100);
+          break;
+        case '80-99':
+          result = result.filter(item => {
+            const completeness = calculateCompleteness(item);
+            return completeness >= 80 && completeness < 100;
+          });
+          break;
+        case '60-79':
+          result = result.filter(item => {
+            const completeness = calculateCompleteness(item);
+            return completeness >= 60 && completeness < 80;
+          });
+          break;
+        case '0-59':
+          result = result.filter(item => calculateCompleteness(item) < 60);
+          break;
+      }
     }
-  };
 
-  // 编辑商品
-  const handleEdit = (record: ProductListingItem) => {
-    setCurrentItem(record);
-    setIsModalVisible(true);
-  };
-
-  // 复制商品
-  const handleCopy = (record: ProductListingItem) => {
-    // 实现复制功能
-  };
-
-  // 删除商品
-  const handleDelete = (record: ProductListingItem) => {
-    Modal.confirm({
-      title: '删除商品',
-      content: `确定删除商品"${record.name}"吗？删除后不可恢复。`,
-      async onOk() {
-        try {
-          await deleteProduct(Number(record.id));
-          message.success('删除成功');
-          fetchProducts();
-        } catch (error) {
-          message.error('删除失败');
-        }
-      },
-    });
-  };
-
-  // 保存商品
-  const handleSave = async (values: Partial<ProductSelection>) => {
-    try {
-      if (!currentItem) return;
-
-      // 更新商品数据
-      const updatedProduct = {
-        ...currentItem,
-        ...values,
-        status: convertToSelectionStatus(currentItem.status),
-      };
-
-      await updateProduct(Number(currentItem.id), updatedProduct);
-      message.success('编辑成功');
-      setIsModalVisible(false);
-      setCurrentItem(undefined);
-      fetchProducts();
-    } catch (error) {
-      message.error('操作失败');
+    // 应用搜索筛选
+    if (searchText) {
+      result = result.filter(item => 
+        item.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+        item.category?.toLowerCase().includes(searchText.toLowerCase())
+      );
     }
-  };
 
-  // 批量导出商品
-  const handleBatchExport = () => {
-    try {
-      // 准备导出数据
-      const exportData = selectedProducts.map(product => ({
-        商品名称: product.name,
-        分类: product.category,
-        原价: product.originalPrice,
-        售价: product.price,
-        库存: product.stock,
-        销量: product.sales,
-        状态: product.status === 'draft' ? '草稿' : 
-              product.status === 'selling' ? '在售' : '下架',
-        创建时间: new Date(product.createdAt).toLocaleString(),
-        更新时间: new Date(product.updatedAt).toLocaleString(),
-      }));
+    return result;
+  }, [data, completenessFilter, searchText]);
 
-      // 转换为CSV
-      const headers = Object.keys(exportData[0]);
-      const csvContent = [
-        headers.join(','),
-        ...exportData.map(row => 
-          headers.map(header => {
-            const value = row[header as keyof typeof row];
-            return typeof value === 'string' && value.includes(',') 
-              ? `"${value}"`
-              : value;
-          }).join(',')
-        )
-      ].join('\n');
-
-      // 创建下载
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `商品数据_${new Date().toLocaleDateString()}.csv`;
-      link.click();
-      
-      message.success('导出成功');
-    } catch (error) {
-      message.error('导出失败');
-    }
-  };
-
-  // 批量删除商品
-  const handleBatchDelete = () => {
-    if (selectedRowKeys.length === 0) {
-      message.warning('请先选择要删除的商品');
-      return;
-    }
-    Modal.confirm({
-      title: '批量删除',
-      content: `确定要删除选中的 ${selectedRowKeys.length} 个商品吗？删除后不可恢复。`,
-      async onOk() {
-        try {
-          await Promise.all(selectedRowKeys.map(id => deleteProduct(Number(id))));
-          message.success('删除成功');
-          setSelectedRowKeys([]);
-          setSelectedProducts([]);
-          fetchProducts();
-        } catch (error) {
-          message.error('删除失败');
-        }
-      },
-    });
-  };
-
-  // 批量操作菜单
-  const batchOperationItems = [
+  // 表格列定义
+  const columns = [
     {
-      key: 'export',
-      label: '导出数据',
-      icon: <ExportOutlined />,
-      onClick: handleBatchExport,
+      title: '商品信息',
+      key: 'productInfo',
+      render: (_: any, record: Product) => (
+        <Space direction="vertical" size={0}>
+          <span className="font-medium">{record.name}</span>
+          {record.category && <Tag>{record.category}</Tag>}
+        </Space>
+      ),
     },
     {
-      key: 'delete',
-      label: '批量删除',
-      icon: <DeleteOutlined />,
-      onClick: handleBatchDelete,
-    },
-  ];
-
-  const columns: ColumnsType<ProductListingItem> = [
-    {
-      title: '商品名称',
-      dataIndex: 'name',
-      key: 'name',
-      width: 200,
+      title: '价格/库存',
+      key: 'priceAndStock',
+      render: (_: any, record: Product) => (
+        <Space direction="vertical" size={0}>
+          <span>¥{record.price}</span>
+          <span className="text-gray-500">库存: {record.stock}</span>
+        </Space>
+      ),
     },
     {
-      title: '分类',
-      dataIndex: 'category',
-      key: 'category',
-      width: 120,
+      title: '发货方式',
+      dataIndex: 'deliveryMethod',
+      key: 'deliveryMethod',
     },
     {
-      title: '原价',
-      dataIndex: 'originalPrice',
-      key: 'originalPrice',
-      width: 100,
-      render: (price: number) => `￥${price}`,
-    },
-    {
-      title: '售价',
-      dataIndex: 'price',
-      key: 'price',
-      width: 100,
-      render: (price: number) => `￥${price}`,
-    },
-    {
-      title: '库存',
-      dataIndex: 'stock',
-      key: 'stock',
-      width: 100,
-    },
-    {
-      title: '销量',
-      dataIndex: 'sales',
-      key: 'sales',
-      width: 100,
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 100,
-      render: (status: string) => {
-        const statusMap = {
-          draft: { color: 'orange', text: '草稿' },
-          selling: { color: 'green', text: '在售' },
-          offline: { color: 'red', text: '下架' },
-        };
-        const { color, text } = statusMap[status as keyof typeof statusMap];
-        return <Tag color={color}>{text}</Tag>;
+      title: '完整度',
+      key: 'completeness',
+      render: (_: any, record: Product) => {
+        const percent = calculateCompleteness(record);
+        let color = 'default';
+        if (percent === 100) color = 'success';
+        else if (percent >= 80) color = 'processing';
+        else if (percent >= 60) color = 'warning';
+        else color = 'error';
+        
+        return (
+          <Tag color={color}>
+            {percent}%
+          </Tag>
+        );
       },
     },
     {
       title: '操作',
       key: 'action',
-      width: 200,
-      render: (_, record) => (
+      render: (_: any, record: Product) => (
         <Space size="middle">
-          <a onClick={() => handleEdit(record)}>
-            <EditOutlined /> 编辑
-          </a>
-          <a onClick={() => handleCopy(record)}>
-            <CopyOutlined /> 复制
-          </a>
-          <a onClick={() => handleDelete(record)}>
-            <DeleteOutlined /> 删除
-          </a>
+          <Button
+            type="link"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setCurrentItem(record);
+              setIsModalVisible(true);
+            }}
+          >
+            编辑
+          </Button>
+          <Button
+            type="link"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => {
+              // 处理删除逻辑
+            }}
+          >
+            删除
+          </Button>
         </Space>
       ),
     },
   ];
 
-  return (
-    <div className="space-y-4">
-      <Card>
-        <div className="flex justify-between">
-          <Space>
-            <Dropdown 
-              menu={{ items: batchOperationItems }} 
-              disabled={selectedRowKeys.length === 0}
-            >
-              <Button>
-                <Space>
-                  批量操作
-                  <DownOutlined />
-                </Space>
-              </Button>
-            </Dropdown>
-            <Select
-              placeholder="选择分类"
-              style={{ width: 200 }}
-              allowClear
-              onChange={value => fetchProducts({ page: 1, pageSize: 10, category: value })}
-              options={[
-                { label: '游戏充值', value: '游戏充值' },
-                { label: '账号租赁', value: '账号租赁' },
-                { label: '代练代打', value: '代练代打' },
-              ]}
-            />
-            <Select
-              placeholder="商品状态"
-              style={{ width: 200 }}
-              allowClear
-              onChange={value => fetchProducts({ page: 1, pageSize: 10, status: value })}
-              options={[
-                { label: '草稿', value: 'draft' },
-                { label: '在售', value: 'selling' },
-                { label: '下架', value: 'offline' },
-              ]}
-            />
-          </Space>
-          <Search
-            placeholder="搜索商品"
-            style={{ width: 300 }}
-            onSearch={value => fetchProducts({ page: 1, pageSize: 10, keyword: value })}
-          />
-        </div>
-      </Card>
+  // 渲染编辑弹窗
+  const renderEditModal = () => {
+    if (!currentItem) return null;
 
-      <Table
-        columns={columns}
-        dataSource={data}
-        rowKey="id"
-        pagination={{
-          total,
-          showSizeChanger: true,
-          showQuickJumper: true,
-          onChange: (page, pageSize) => fetchProducts({ page, pageSize }),
-        }}
-        loading={loading}
-      />
-
+    return (
       <Modal
         title="编辑商品"
         open={isModalVisible}
@@ -353,20 +153,59 @@ const ProductListing: React.FC = () => {
         footer={null}
         width={800}
       >
-        {currentItem && (
-          <EditSelectionForm
-            initialValues={{
-              ...currentItem,
-              status: convertToSelectionStatus(currentItem.status),
-            }}
-            onSubmit={handleSave}
-            onCancel={() => {
-              setIsModalVisible(false);
-              setCurrentItem(undefined);
-            }}
-          />
-        )}
+        <EditProductForm
+          initialValues={currentItem}
+          onSubmit={async (values) => {
+            // 处理提交逻辑
+            setIsModalVisible(false);
+            setCurrentItem(undefined);
+          }}
+          onCancel={() => {
+            setIsModalVisible(false);
+            setCurrentItem(undefined);
+          }}
+        />
       </Modal>
+    );
+  };
+
+  return (
+    <div className="p-6">
+      <Card>
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center space-x-2">
+            <Search
+              placeholder="搜索商品"
+              style={{ width: 200 }}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onSearch={setSearchText}
+            />
+            <Select
+              placeholder="完整度"
+              style={{ width: 160 }}
+              value={completenessFilter}
+              onChange={setCompletenessFilter}
+              allowClear
+              options={completenessOptions}
+            />
+          </div>
+          <Space>
+            <Button type="primary" onClick={() => setIsModalVisible(true)}>
+              新增商品
+            </Button>
+          </Space>
+        </div>
+
+        <Table
+          columns={columns}
+          dataSource={filteredData}
+          loading={loading}
+          rowKey="id"
+        />
+      </Card>
+      
+      {renderEditModal()}
     </div>
   );
 };

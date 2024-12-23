@@ -47,31 +47,27 @@ export type ProductSourceStatus =
 export interface ProductSelection {
   id: string;
   name: string;
-  category: ProductCategory;
-  description: string;
-  keywords?: string[];
-  remark?: string;
-  price: number;
-  stock: number;
-  createdAt: string;
-  status: ProductSelectionStatus;
-  source: 'manual' | 'crawler';
-  source_status: ProductSourceStatus;
-  hasSpecs: boolean;
-  specs?: ProductSpec[];
-  deliveryMethod?: DeliveryMethod;
+  category?: string;
+  price?: number;
+  stock?: number;
+  deliveryMethod?: string;
   deliveryInfo?: string;
-  productUrl?: string;
-  coverImage?: string;
-  commonImages?: {
+  commonImages?: Array<{
     id: string;
     url: string;
-    thumbUrl?: string;
-    type: 'common';
-    sort: number;
-    createdAt: string;
+    thumbUrl: string;
     size?: number;
-  }[];
+  }>;
+  createdAt: string;
+  source: 'manual' | 'crawler';
+  hasSpecs: boolean;
+  specs?: Array<{
+    name: string;
+    price?: number;
+    stock?: number;
+    deliveryMethod?: string;
+    deliveryInfo?: string;
+  }>;
 }
 
 // 商品状态类型

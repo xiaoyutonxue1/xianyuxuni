@@ -22,15 +22,6 @@ export const calculateCompleteness = (record: any) => {
       if (record[field]) completedFields++;
     });
 
-    // 检查头图
-    totalFields += 1;
-    if (record.coverImage) completedFields++;
-
-    // 检查商品标题和文案
-    totalFields += 2;
-    if (record.distributedTitle?.trim()) completedFields++;
-    if (record.distributedContent?.trim()) completedFields++;
-
     // 检查公共图片
     totalFields += 1;
     if (record.commonImages && record.commonImages.length > 0) {
@@ -54,7 +45,12 @@ export const calculateCompleteness = (record: any) => {
       const saleFields = ['price', 'stock', 'deliveryMethod', 'deliveryInfo'];
       totalFields += saleFields.length;
       saleFields.forEach(field => {
-        if (record[field]) completedFields++;
+        if (field === 'stock' || field === 'price') {
+          // 检查数值类型，包括 0 和默认值
+          if (record[field] !== undefined && record[field] !== null) completedFields++;
+        } else {
+          if (record[field]) completedFields++;
+        }
       });
     }
   }
@@ -73,15 +69,8 @@ export const getMissingFields = (record: any) => {
   } else {
     // 手动模式
     // 检查基础信息
-    if (!record.name) missingFields.push('��品名称');
+    if (!record.name) missingFields.push('商品名称');
     if (!record.category) missingFields.push('商品分类');
-    
-    // 检查头图
-    if (!record.coverImage) missingFields.push('商品头图');
-
-    // 检查商品标题和文案
-    if (!record.distributedTitle?.trim()) missingFields.push('商品标题');
-    if (!record.distributedContent?.trim()) missingFields.push('商品文案');
     
     // 检查公共图片
     if (!record.commonImages || record.commonImages.length === 0) {
@@ -104,8 +93,8 @@ export const getMissingFields = (record: any) => {
       }
     } else {
       // 单规格模式
-      if (!record.price) missingFields.push('商品价格');
-      if (!record.stock) missingFields.push('商品库存');
+      if (record.price === undefined || record.price === null) missingFields.push('商品价格');
+      if (record.stock === undefined || record.stock === null) missingFields.push('商品库存');
       if (!record.deliveryMethod) missingFields.push('发货方式');
       if (!record.deliveryInfo) missingFields.push('发货信息');
     }

@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Select, InputNumber, Button, Switch, Space, message, Upload, Tooltip, Progress, Modal } from 'antd';
+import { Form, Input, Select, InputNumber, Button, Switch, Space, message, Upload, Tooltip, Modal } from 'antd';
 import { InfoCircleFilled, PlusOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import type { Product } from '../../types/product';
 import { categoryOptions, deliveryMethods } from '../../utils/constants';
 import useSettingsStore from '../../store/settingsStore';
-import { calculateCompleteness, getMissingFields } from '../../utils/productCompleteness';
 
 interface EditProductFormProps {
   initialValues: Product;
@@ -36,8 +35,6 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
       type: 'common'
     })) || []
   );
-  const [completeness, setCompleteness] = useState(calculateCompleteness(initialValues));
-  const [missingFields, setMissingFields] = useState<string[]>(getMissingFields(initialValues));
   const [previewIndex, setPreviewIndex] = useState<number>(0);
   const [coverImageUrl, setCoverImageUrl] = useState<string>(initialValues.coverImage || '');
   const [coverImageLoading, setCoverImageLoading] = useState(false);
@@ -54,35 +51,39 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
 
   const { productSettings } = useSettingsStore();
 
+  // 添加发货方式对应的提示和验证规则
+  const deliveryInfoConfig: Record<string, { placeholder: string; rules: any[] }> = {
+    baiduDisk: {
+      placeholder: '请输入百度网盘链接，格式：链接 提取码',
+      rules: []
+    },
+    baiduDiskGroup: {
+      placeholder: '请输入百度网盘群链接，格式：群链接',
+      rules: []
+    },
+    baiduDiskGroupCode: {
+      placeholder: '请输入百度网盘群口令',
+      rules: []
+    },
+    quarkDisk: {
+      placeholder: '请输入夸克网盘链接，格式：链接 提取码',
+      rules: []
+    },
+    quarkDiskGroup: {
+      placeholder: '请输入夸克网盘群链接',
+      rules: []
+    }
+  } as const;
+
+  // 添加发货方式状态
+  const [currentDeliveryMethod, setCurrentDeliveryMethod] = useState<string>(
+    initialValues?.deliveryMethod || 'baiduDisk'
+  );
+
   // 监听表单初始化
   useEffect(() => {
     console.log('Form initialized with values:', initialValues);
-    form.setFieldsValue(initialValues);
   }, [initialValues, form]);
-
-  // 更新完整度
-  const updateCompleteness = () => {
-    const values = form.getFieldsValue();
-    const currentData = {
-      ...values,
-      hasSpecs,
-      commonImages: fileList
-    };
-    const percent = calculateCompleteness(currentData);
-    const missing = getMissingFields(currentData);
-    setCompleteness(percent);
-    setMissingFields(missing);
-  };
-
-  // 监听表单值变化
-  const handleFormChange = () => {
-    updateCompleteness();
-  };
-
-  // 初始化时计算完整度
-  useEffect(() => {
-    updateCompleteness();
-  }, [hasSpecs, fileList]);
 
   // 获取文件的 base64 数据
   const getBase64 = (file: File): Promise<string> => {
@@ -211,7 +212,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
         deliveryInfo: undefined,
         specs: [{ 
           name: '发货网盘',
-          stock: 999,
+          stock: undefined,
           deliveryMethod: 'baiduDisk',
           deliveryInfo: ''
         }]
@@ -221,7 +222,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
         specs: undefined,
         deliveryMethod: 'baiduDisk',
         deliveryInfo: '',
-        stock: 999
+        stock: undefined
       });
     }
   };
@@ -250,6 +251,13 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
     if (info.file.status === 'done') {
       setCoverImageLoading(false);
     }
+  };
+
+  // 处理发货方式变化
+  const handleDeliveryMethodChange = (value: string) => {
+    setCurrentDeliveryMethod(value);
+    // 清空发货信息
+    form.setFieldValue('deliveryInfo', '');
   };
 
   // 处理表单提交
@@ -300,54 +308,9 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
           }] : []
         }}
         onFinish={handleSubmit}
-        onValuesChange={handleFormChange}
       >
-        <div className="mb-4 flex justify-between items-center">
+        <div className="mb-4">
           <span className="text-lg font-medium">编辑商品</span>
-          <Tooltip
-            title={
-              missingFields.length > 0 ? (
-                <div className="p-2">
-                  <div className="text-base text-red-500 mb-2">
-                    未填写项目
-                  </div>
-                  <div className="bg-red-50 rounded p-2">
-                    {missingFields.map((field, index) => (
-                      <div key={index} className="text-red-400 py-0.5">
-                        • {field}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null
-            }
-            overlayStyle={{ 
-              maxWidth: '400px',
-              borderRadius: '8px',
-            }}
-            overlayInnerStyle={{
-              borderRadius: '8px',
-            }}
-            color="#fff"
-            placement="bottomRight"
-          >
-            <div className="cursor-pointer" style={{ width: '300px' }}>
-              <Progress
-                percent={completeness}
-                size="small"
-                format={(percent) => (
-                  <span style={{ fontSize: '12px' }}>
-                    {percent}%
-                  </span>
-                )}
-                strokeColor={{
-                  '0%': '#108ee9',
-                  '100%': '#87d068',
-                }}
-                style={{ margin: 0 }}
-              />
-            </div>
-          </Tooltip>
         </div>
 
         {/* 第一行：商品名称、商品标题、商品分类 */}
@@ -533,7 +496,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
         {/* 单规格信息 */}
         {!hasSpecs && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <Form.Item
                 name="price"
                 label="售价(元)"
@@ -553,15 +516,20 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
                   min={0}
                   placeholder="请输入库存"
                   style={{ width: '100%' }}
-                  defaultValue={999}
                 />
               </Form.Item>
+            </div>
 
+            <div className="grid grid-cols-4 gap-4">
               <Form.Item
                 name="deliveryMethod"
                 label="发货方式"
+                className="col-span-1"
               >
-                <Select placeholder="请选择发货方式">
+                <Select 
+                  placeholder="请选择发货方式"
+                  onChange={handleDeliveryMethodChange}
+                >
                   {deliveryMethods.map(method => (
                     <Select.Option key={method.value} value={method.value}>
                       {method.label}
@@ -569,17 +537,25 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
                   ))}
                 </Select>
               </Form.Item>
-            </div>
 
-            <Form.Item
-              name="deliveryInfo"
-              label="发货信息"
-            >
-              <Input.TextArea
-                placeholder="请输入发货信息"
-                rows={3}
-              />
-            </Form.Item>
+              <Form.Item
+                name="deliveryInfo"
+                label={
+                  <Space>
+                    发货信息
+                    <Tooltip title={deliveryInfoConfig[currentDeliveryMethod as keyof typeof deliveryInfoConfig]?.placeholder}>
+                      <InfoCircleFilled style={{ color: '#1890ff' }} />
+                    </Tooltip>
+                  </Space>
+                }
+                className="col-span-3"
+              >
+                <Input.TextArea
+                  placeholder={deliveryInfoConfig[currentDeliveryMethod as keyof typeof deliveryInfoConfig]?.placeholder}
+                  rows={3}
+                />
+              </Form.Item>
+            </div>
           </div>
         )}
 
@@ -613,7 +589,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
                         <Input placeholder="请输入规格名称" />
                       </Form.Item>
 
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         <Form.Item
                           {...field}
                           name={[field.name, 'price']}
@@ -635,16 +611,25 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
                             min={0}
                             placeholder="请输入库存"
                             style={{ width: '100%' }}
-                            defaultValue={999}
                           />
                         </Form.Item>
+                      </div>
 
+                      <div className="grid grid-cols-4 gap-4">
                         <Form.Item
                           {...field}
                           name={[field.name, 'deliveryMethod']}
                           label="发货方式"
+                          className="col-span-1"
                         >
-                          <Select placeholder="请选择发货方式">
+                          <Select 
+                            placeholder="请选择发货方式"
+                            onChange={(value) => {
+                              const specs = form.getFieldValue('specs');
+                              specs[index].deliveryInfo = '';
+                              form.setFieldsValue({ specs });
+                            }}
+                          >
                             {deliveryMethods.map(method => (
                               <Select.Option key={method.value} value={method.value}>
                                 {method.label}
@@ -652,18 +637,34 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
                             ))}
                           </Select>
                         </Form.Item>
-                      </div>
 
-                      <Form.Item
-                        {...field}
-                        name={[field.name, 'deliveryInfo']}
-                        label="发货信息"
-                      >
-                        <Input.TextArea
-                          placeholder="请输入发货信息"
-                          rows={3}
-                        />
-                      </Form.Item>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, 'deliveryInfo']}
+                          label={
+                            <Space>
+                              发货信息
+                              <Tooltip title={
+                                deliveryInfoConfig[
+                                  form.getFieldValue(['specs', index, 'deliveryMethod']) || 'baiduDisk'
+                                ]?.placeholder
+                              }>
+                                <InfoCircleFilled style={{ color: '#1890ff' }} />
+                              </Tooltip>
+                            </Space>
+                          }
+                          className="col-span-3"
+                        >
+                          <Input.TextArea
+                            placeholder={
+                              deliveryInfoConfig[
+                                form.getFieldValue(['specs', index, 'deliveryMethod']) || 'baiduDisk'
+                              ]?.placeholder
+                            }
+                            rows={3}
+                          />
+                        </Form.Item>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -741,23 +742,11 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
               />
             </>
           )}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            padding: '0 60px',
-            minHeight: '400px',
-            maxHeight: '80vh',
-            overflow: 'hidden'
-          }}>
+          <div className="flex justify-center">
             <img
-              alt="预览图片"
+              alt={previewTitle}
               src={previewImage}
-              style={{ 
-                maxWidth: '100%',
-                maxHeight: '80vh',
-                objectFit: 'contain'
-              }}
+              style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 200px)' }}
             />
           </div>
         </div>
@@ -766,5 +755,4 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
   );
 };
 
-// 确保组件被正确导出
 export default EditProductForm; 
