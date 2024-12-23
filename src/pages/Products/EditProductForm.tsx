@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Form, Input, Select, InputNumber, Button, Switch, Space, message, Upload, Tooltip, Progress, Modal } from 'antd';
 import { InfoCircleFilled, PlusOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
-import type { ProductSelection } from '../../types/product';
+import type { Product } from '../../types/product';
 import { categoryOptions, deliveryMethods } from '../../utils/constants';
 import useSettingsStore from '../../store/settingsStore';
 import { calculateCompleteness, getMissingFields } from '../../utils/productCompleteness';
 
 interface EditProductFormProps {
-  initialValues: ProductSelection;
+  initialValues: Product;
   onSubmit: (values: any) => Promise<void>;
   onCancel: () => void;
 }
@@ -26,14 +26,14 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
   const [previewImage, setPreviewImage] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
   const [fileList, setFileList] = useState<UploadFile[]>(
-    initialValues.commonImages?.map(img => ({
+    initialValues.commonImages?.map((img: any) => ({
       uid: img.id,
       url: img.url,
       thumbUrl: img.thumbUrl,
       name: img.id,
       status: 'done',
       size: img.size || 0,
-      type: img.type
+      type: 'common'
     })) || []
   );
   const [completeness, setCompleteness] = useState(calculateCompleteness(initialValues));
@@ -350,109 +350,124 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
           </Tooltip>
         </div>
 
-        <Form.Item
-          name="name"
-          label="商品名称"
-          rules={[{ required: true, message: '请输入商品名称' }]}
-        >
-          <Input placeholder="请输入商品名称" />
-        </Form.Item>
+        {/* 第一行：商品名称、商品标题、商品分类 */}
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-3">
+            <Form.Item
+              name="name"
+              label="商品名称"
+              rules={[{ required: true, message: '请输入商品名称' }]}
+            >
+              <Input placeholder="请输入商品名称" />
+            </Form.Item>
+          </div>
+          
+          <div className="col-span-6">
+            <Form.Item
+              name="distributedTitle"
+              label="商品标题"
+              rules={[{ required: true, message: '请输入商品标题' }]}
+            >
+              <Input.TextArea
+                placeholder="请输入商品标题"
+                rows={1}
+                autoSize={{ minRows: 1, maxRows: 2 }}
+              />
+            </Form.Item>
+          </div>
+          
+          <div className="col-span-3">
+            <Form.Item
+              name="category"
+              label="商品分类"
+              rules={[{ required: true, message: '请选择商品分类' }]}
+            >
+              <Select placeholder="请选择商品分类">
+                {productSettings?.categories?.map(category => (
+                  <Select.Option key={category} value={category}>
+                    {category}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </div>
+        </div>
 
-        {/* 修改头图上传 */}
-        <Form.Item
-          name="coverImage"
-          label="商品头图"
-          rules={[{ required: true, message: '请上传商品头图' }]}
-        >
-          <Upload
-            name="coverImage"
-            listType="picture-card"
-            showUploadList={true}
-            maxCount={1}
-            fileList={coverImageList}
-            beforeUpload={(file) => {
-              const isImage = file.type.startsWith('image/');
-              if (!isImage) {
-                message.error('只能上传图片文件！');
-                return false;
-              }
-              // 读取文件并更新表单值
-              getBase64(file).then(url => {
-                const newFile: UploadFile = {
-                  uid: '-1',
-                  name: file.name,
-                  status: 'done',
-                  url: url,
-                  type: file.type,
-                  thumbUrl: url,
-                  originFileObj: file
-                };
-                setCoverImageList([newFile]);
-                form.setFieldsValue({ coverImage: url });
-              });
-              return false;
-            }}
-            onChange={({ fileList }) => {
-              setCoverImageList(fileList);
-              if (fileList.length === 0) {
-                form.setFieldsValue({ coverImage: undefined });
-              }
-            }}
-            onPreview={async (file) => {
-              if (!file.url && !file.preview) {
-                file.preview = await getBase64(file.originFileObj as File);
-              }
-              setPreviewImage(file.url || file.preview as string);
-              setPreviewOpen(true);
-              setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
-            }}
-          >
-            {!coverImageList.length && (
-              <div className="flex flex-col items-center justify-center">
-                <PlusOutlined />
-                <div className="mt-2">上传头图</div>
-              </div>
-            )}
-          </Upload>
-        </Form.Item>
-
-        {/* 添加商品标题 */}
-        <Form.Item
-          name="distributedTitle"
-          label="商品标题"
-          rules={[{ required: true, message: '请输入商品标题' }]}
-        >
-          <Input.TextArea
-            placeholder="请输入商品标题"
-            rows={2}
-          />
-        </Form.Item>
-
-        {/* 添加商品文案 */}
-        <Form.Item
-          name="distributedContent"
-          label="商品文案"
-          rules={[{ required: true, message: '请输入商品文案' }]}
-        >
-          <Input.TextArea
-            placeholder="请输入商品文案"
-            rows={4}
-          />
-        </Form.Item>
-
-        <Form.Item
-          name="category"
-          label="商品分类"
-          rules={[{ required: true, message: '请选择商品分类' }]}
-        >
-          <Select placeholder="请选择商品分类">
-            {productSettings?.categories?.map(category => (
-              <Select.Option key={category} value={category}>
-                {category}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
+        {/* 第二行：商品头图和商品文案 */}
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-3">
+            <Form.Item
+              name="coverImage"
+              label="商品头图"
+              rules={[{ required: true, message: '请上传商品头图' }]}
+            >
+              <Upload
+                name="coverImage"
+                listType="picture-card"
+                showUploadList={true}
+                maxCount={1}
+                fileList={coverImageList}
+                beforeUpload={(file) => {
+                  const isImage = file.type.startsWith('image/');
+                  if (!isImage) {
+                    message.error('只能上传图片文件！');
+                    return false;
+                  }
+                  // 读取文件并更新表单值
+                  getBase64(file).then(url => {
+                    const newFile: UploadFile = {
+                      uid: '-1',
+                      name: file.name,
+                      status: 'done',
+                      url: url,
+                      type: file.type,
+                      thumbUrl: url,
+                      originFileObj: file
+                    };
+                    setCoverImageList([newFile]);
+                    form.setFieldsValue({ coverImage: url });
+                  });
+                  return false;
+                }}
+                onChange={({ fileList }) => {
+                  setCoverImageList(fileList);
+                  if (fileList.length === 0) {
+                    form.setFieldsValue({ coverImage: undefined });
+                  }
+                }}
+                onPreview={async (file) => {
+                  if (!file.url && !file.preview) {
+                    file.preview = await getBase64(file.originFileObj as File);
+                  }
+                  setPreviewImage(file.url || file.preview as string);
+                  setPreviewOpen(true);
+                  setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
+                }}
+              >
+                {!coverImageList.length && (
+                  <div className="flex flex-col items-center justify-center">
+                    <PlusOutlined />
+                    <div className="mt-2">上传头图</div>
+                  </div>
+                )}
+              </Upload>
+            </Form.Item>
+          </div>
+          
+          <div className="col-span-9">
+            <Form.Item
+              name="distributedContent"
+              label="商品文案"
+              rules={[{ required: true, message: '请输入商品文案' }]}
+            >
+              <Input.TextArea
+                placeholder="请输入商品文案"
+                rows={4}
+                style={{ height: '104px', resize: 'none' }}
+              />
+            </Form.Item>
+          </div>
+        </div>
 
         {/* 公共图片上传 */}
         <Form.Item

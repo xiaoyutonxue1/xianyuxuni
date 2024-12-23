@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, Alert, Empty, message, Typography, Dropdown } from 'antd';
-import { ShopOutlined, DownOutlined, DeleteOutlined, ExportOutlined } from '@ant-design/icons';
-import type { ProductSelection, ProductSelectionStatus, Product, CreateSelectionRequest } from '../../types/product';
+import { ShopOutlined, DownOutlined, DeleteOutlined, ExportOutlined, EditOutlined } from '@ant-design/icons';
+import type { ProductSelection, ProductSelectionStatus, Product } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
 import useSelectionStore from '../../store/selectionStore';
 import type { ColumnsType } from 'antd/es/table/interface';
-import ProductForm from './ProductForm';
+import EditSelectionForm from './EditSelectionForm';
 
 const { Search } = Input;
 const { Text } = Typography;
@@ -54,6 +54,24 @@ const ProductSelectionPage: React.FC = () => {
   const { storeAccounts, storeGroups } = useSettingsStore();
   const { addProducts } = useProductStore();
   const { selections, updateSelectionStatus, deleteSelections, updateSelection } = useSelectionStore();
+
+  // 删除选品
+  const handleDelete = (record: ProductSelection) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除选品"${record.name}"吗？`,
+      okText: '确定',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await deleteSelections([record.id]);
+          message.success('删除成功');
+        } catch (error) {
+          message.error('删除失败');
+        }
+      }
+    });
+  };
 
   // 批量删除选品
   const handleBatchDelete = () => {
@@ -158,24 +176,16 @@ const ProductSelectionPage: React.FC = () => {
           }
 
           // 创建新商品
-          const newProduct: Omit<Product, 'method'> = {
+          const newProduct: Product = {
             id: `${selection.id}-${storeId}`,
             name: selection.name,
             category: selection.category,
-            description: selection.description,
-            keywords: selection.keywords,
-            remark: selection.remark,
+            description: selection.description || '',
             price: selection.price,
             stock: selection.stock,
             createdAt: selection.createdAt,
             source: selection.source,
             hasSpecs: selection.hasSpecs,
-            specs: selection.specs,
-            deliveryMethod: selection.deliveryMethod,
-            deliveryInfo: selection.deliveryInfo,
-            productUrl: selection.productUrl,
-            errorMessage: selection.errorMessage,
-            completeness: selection.completeness,
             selectionId: selection.id,
             storeId,
             templateId: defaultTemplate.id,
@@ -185,9 +195,11 @@ const ProductSelectionPage: React.FC = () => {
             distributedTitle: defaultTemplate.title.replace('{title}', selection.name),
             distributedContent: defaultTemplate.description.replace('{description}', selection.description || ''),
             coverImage: selection.coverImage,
+            deliveryMethod: selection.deliveryMethod,
+            deliveryInfo: selection.deliveryInfo,
           };
           
-          newProducts.push(newProduct as Product);
+          newProducts.push(newProduct);
         }
 
         // 更新选品状态
@@ -218,38 +230,16 @@ const ProductSelectionPage: React.FC = () => {
   };
 
   // 处理编辑表单提交
-  const handleEditSubmit = async (values: CreateSelectionRequest) => {
+  const handleEditSubmit = async (values: Partial<ProductSelection>) => {
     try {
-      if (!selectedSelection || !values.id) {
+      if (!selectedSelection) {
         throw new Error('缺少选品ID');
       }
 
       // 更新选品数据
       const updatedSelection: ProductSelection = {
-        id: values.id,
-        name: values.name,
-        category: values.category,
-        description: values.description,
-        keywords: values.keywords,
-        remark: values.remark,
-        price: values.price,
-        stock: values.stock,
-        createdAt: selectedSelection.createdAt,
-        status: selectedSelection.status,
-        source: values.source,
-        hasSpecs: values.hasSpecs,
-        specs: values.specs ? values.specs.map(spec => ({
-          id: `spec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: spec.name,
-          price: spec.price,
-          stock: spec.stock,
-          deliveryMethod: spec.deliveryMethod,
-          deliveryInfo: spec.deliveryInfo || '',
-        })) : undefined,
-        deliveryMethod: values.deliveryMethod,
-        deliveryInfo: values.deliveryInfo,
-        productUrl: values.productUrl,
-        coverImage: values.coverImage,
+        ...selectedSelection,
+        ...values,
       };
 
       // 使用 updateSelection 更新数据
@@ -267,15 +257,25 @@ const ProductSelectionPage: React.FC = () => {
     if (!selectedSelection) return null;
 
     return (
-      <ProductForm
-        mode="edit"
-        initialData={selectedSelection}
-        onSubmit={handleEditSubmit}
+      <Modal
+        title="编辑选品"
+        open={isEditModalVisible}
         onCancel={() => {
           setIsEditModalVisible(false);
           setSelectedSelection(null);
         }}
-      />
+        footer={null}
+        width={800}
+      >
+        <EditSelectionForm
+          initialValues={selectedSelection}
+          onSubmit={handleEditSubmit}
+          onCancel={() => {
+            setIsEditModalVisible(false);
+            setSelectedSelection(null);
+          }}
+        />
+      </Modal>
     );
   };
 
@@ -340,20 +340,24 @@ const ProductSelectionPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
+      width: 120,
       render: (_, record) => (
         <Space size="middle">
-          {record.status === 'pending' && (
-            <Button
-              type="link"
-              onClick={() => {
-                setSelectedRowKeys([record.id]);
-                setSelectedSelections([record]);
-                setIsModalVisible(true);
-              }}
-            >
-              分配
-            </Button>
-          )}
+          <Button
+            type="link"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+          <Button
+            type="link"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDelete(record)}
+          >
+            删除
+          </Button>
         </Space>
       ),
     },
@@ -384,109 +388,118 @@ const ProductSelectionPage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-4">
+    <div>
       <Card>
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-4">
           <Space>
-            <Button
-              type="primary"
-              icon={<ShopOutlined />}
-              onClick={() => {
-                if (selectedRowKeys.length === 0) {
-                  message.warning('请先选择要分配的选品');
-                  return;
-                }
-                setIsModalVisible(true);
+            <Search
+              placeholder="搜索选品名称或分类"
+              onSearch={value => setSearchText(value)}
+              onChange={e => setSearchText(e.target.value)}
+              allowClear
+            />
+          </Space>
+          <Space>
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'export',
+                    label: '导出数据',
+                    icon: <ExportOutlined />,
+                    onClick: handleBatchExport,
+                    disabled: selectedRowKeys.length === 0,
+                  },
+                  {
+                    key: 'delete',
+                    label: '批量删除',
+                    icon: <DeleteOutlined />,
+                    onClick: handleBatchDelete,
+                    disabled: selectedRowKeys.length === 0,
+                    danger: true,
+                  },
+                ],
               }}
-              disabled={selectedRowKeys.length === 0}
-            >
-              批量分配
-            </Button>
-            <Dropdown 
-              menu={{ items: batchOperationItems }} 
-              disabled={selectedRowKeys.length === 0}
             >
               <Button>
-                <Space>
-                  批量操作
-                  <DownOutlined />
-                </Space>
+                批量操作 <DownOutlined />
               </Button>
             </Dropdown>
           </Space>
-          <Search
-            placeholder="搜索选品名称/分类"
-            style={{ width: 300 }}
-            value={searchText}
-            onChange={e => setSearchText(e.target.value)}
-            allowClear
-          />
         </div>
-      </Card>
 
-      <Table
-        columns={columns}
-        dataSource={getFilteredSelections()}
-        rowKey="id"
-        rowSelection={rowSelection}
-        pagination={{
-          showSizeChanger: true,
-          showQuickJumper: true,
-          showTotal: total => `共 ${total} 条记录`,
-        }}
-        loading={loading}
-      />
+        <Table
+          columns={columns}
+          dataSource={getFilteredSelections()}
+          rowKey="id"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (selectedKeys, selectedRows) => {
+              setSelectedRowKeys(selectedKeys);
+              setSelectedSelections(selectedRows);
+            },
+          }}
+          pagination={{
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: total => `共 ${total} 条记录`,
+          }}
+          loading={loading}
+        />
 
-      <Modal
-        title="分配选品"
-        open={isModalVisible}
-        onOk={handleDistribute}
-        onCancel={() => {
-          setIsModalVisible(false);
-          form.resetFields();
-        }}
-        width={600}
-      >
-        <div className="mb-4">
-          <Alert
-            message={`已选中 ${selectedSelections.length} 个选品`}
-            description="选中的选品将被分配到所选店铺，个店铺将使用其默认模板创建独立商品。"
-            type="info"
-            showIcon
-          />
-        </div>
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="stores"
-            label="选择店铺"
-            rules={[{ required: true, message: '请选择至少一个店铺' }]}
-          >
-            <Select
-              mode="multiple"
-              placeholder="请选择要分配的店铺"
-              style={{ width: '100%' }}
-              options={[
-                {
-                  label: '店铺组',
-                  options: storeGroups.map(group => ({
-                    label: `${group.name} (${group.storeIds.length}家店铺)`,
-                    value: `group:${group.id}`,
-                  })),
-                },
-                {
-                  label: '单个店铺',
-                  options: storeAccounts.map(account => ({
-                    label: `${account.name} (${account.platform})${account.features.templates?.some(t => t.isDefault) ? '' : ' (未设置默认模板)'}`,
-                    value: account.id,
-                  })),
-                },
-              ]}
+        {/* 分配弹窗 */}
+        <Modal
+          title="分配选品"
+          open={isModalVisible}
+          onOk={handleDistribute}
+          onCancel={() => {
+            setIsModalVisible(false);
+            form.resetFields();
+          }}
+          width={600}
+        >
+          <div className="mb-4">
+            <Alert
+              message={`已选中 ${selectedSelections.length} 个选品`}
+              description="选中的选品将被分配到所选店铺，每个店铺将使用其默认模板创建独立商品。"
+              type="info"
+              showIcon
             />
-          </Form.Item>
-        </Form>
-      </Modal>
+          </div>
+          <Form form={form} layout="vertical">
+            <Form.Item
+              name="stores"
+              label="选择店铺"
+              rules={[{ required: true, message: '请选择至少一个店铺' }]}
+            >
+              <Select
+                mode="multiple"
+                placeholder="请选择要分配的店铺"
+                style={{ width: '100%' }}
+                options={[
+                  {
+                    label: '店铺组',
+                    options: storeGroups.map(group => ({
+                      label: `${group.name} (${group.storeIds.length}家店铺)`,
+                      value: `group:${group.id}`,
+                    })),
+                  },
+                  {
+                    label: '单个店铺',
+                    options: storeAccounts.map(account => ({
+                      label: `${account.name} (${account.platform})${account.features.templates?.some(t => t.isDefault) ? '' : ' (未设置默认模板)'}`,
+                      value: account.id,
+                    })),
+                  },
+                ]}
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
 
-      {renderEditModal()}
+        {/* 编辑弹窗 */}
+        {renderEditModal()}
+      </Card>
     </div>
   );
 };

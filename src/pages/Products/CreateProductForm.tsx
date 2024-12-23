@@ -1,32 +1,60 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Form, Input, Select, InputNumber, Button, Switch, Space, message, Upload, Tooltip, Progress, Modal } from 'antd';
 import { InfoCircleFilled, PlusOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd/es/upload/interface';
 import useSettingsStore from '../../store/settingsStore';
 import { deliveryMethods } from '../../utils/constants';
 import { calculateCompleteness, getMissingFields } from '../../utils/productCompleteness';
+import type { ProductSelection } from '../../types/product';
 
 interface CreateProductFormProps {
   onSubmit: (values: any) => Promise<void>;
   onCancel: () => void;
+  mode?: 'create' | 'edit';
+  initialValues?: ProductSelection;
 }
 
 const CreateProductForm: React.FC<CreateProductFormProps> = ({
   onSubmit,
   onCancel,
+  mode = 'create',
+  initialValues,
 }) => {
   const [form] = Form.useForm();
-  const [hasSpecs, setHasSpecs] = useState(false);
-  const [createMode, setCreateMode] = useState<'manual' | 'crawler'>('manual');
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [hasSpecs, setHasSpecs] = useState(initialValues?.hasSpecs || false);
+  const [createMode, setCreateMode] = useState<'manual' | 'crawler'>(initialValues?.source || 'manual');
+  const [fileList, setFileList] = useState<UploadFile[]>(
+    initialValues?.commonImages?.map(img => ({
+      uid: img.id,
+      url: img.url,
+      thumbUrl: img.thumbUrl,
+      name: img.id,
+      status: 'done',
+      size: img.size || 0,
+      type: 'common'
+    })) || []
+  );
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number>(0);
-  const [completeness, setCompleteness] = useState(0);
-  const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [completeness, setCompleteness] = useState(calculateCompleteness(initialValues || {}));
+  const [missingFields, setMissingFields] = useState<string[]>(getMissingFields(initialValues || {}));
 
   const { productSettings } = useSettingsStore();
+
+  // 初始化表单数据
+  useEffect(() => {
+    if (initialValues && mode === 'edit') {
+      form.setFieldsValue({
+        ...initialValues,
+        method: initialValues.source,
+      });
+      setHasSpecs(initialValues.hasSpecs || false);
+      setCreateMode(initialValues.source || 'manual');
+      updateCompleteness();
+    }
+  }, [initialValues, form, mode]);
 
   // 获取文件的 base64 数据
   const getBase64 = (file: File): Promise<string> => {
@@ -228,10 +256,10 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
         layout="vertical"
         onFinish={handleSubmit}
         onValuesChange={handleFormChange}
-        initialValues={{ method: 'manual' }}
+        initialValues={mode === 'create' ? { method: 'manual' } : undefined}
       >
         <div className="mb-4 flex justify-between items-center">
-          <span className="text-lg font-medium">新增选品</span>
+          <span className="text-lg font-medium">{mode === 'create' ? '新增选品' : '编辑选品'}</span>
           <Tooltip
             title={
               missingFields.length > 0 ? (
@@ -278,25 +306,26 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
           </Tooltip>
         </div>
 
-        <Form.Item
-          name="method"
-          label="创建模式"
-        >
-          <Space>
-            <Button
-              type={createMode === 'manual' ? 'primary' : 'default'}
-              onClick={() => handleModeChange('manual')}
-            >
-              手动创建
-            </Button>
-            <Button
-              type={createMode === 'crawler' ? 'primary' : 'default'}
-              onClick={() => handleModeChange('crawler')}
-            >
-              爬虫抓取
-            </Button>
-          </Space>
-        </Form.Item>
+        {/* 创建模式选择 */}
+        {mode === 'create' && (
+          <div className="mb-4">
+            <div className="text-sm text-gray-500 mb-2">创建模式</div>
+            <Space>
+              <Button
+                type={createMode === 'manual' ? 'primary' : 'default'}
+                onClick={() => handleModeChange('manual')}
+              >
+                手动创建
+              </Button>
+              <Button
+                type={createMode === 'crawler' ? 'primary' : 'default'}
+                onClick={() => handleModeChange('crawler')}
+              >
+                爬虫抓取
+              </Button>
+            </Space>
+          </div>
+        )}
 
         {createMode === 'manual' ? (
           <>
@@ -551,7 +580,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
             取消
           </Button>
           <Button type="primary" htmlType="submit">
-            新增选品
+            {mode === 'create' ? '新增选品' : '确定'}
           </Button>
         </div>
       </Form>

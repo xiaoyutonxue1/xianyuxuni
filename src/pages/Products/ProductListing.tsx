@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, Table, Button, Input, Space, Tag, Modal, Form, Select, message, Tooltip, InputNumber, Dropdown } from 'antd';
 import { EditOutlined, DeleteOutlined, CopyOutlined, ExportOutlined, DownOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import useSettingsStore from '../../store/settingsStore';
 import type { StoreAccount } from '../../store/settingsStore';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '../../services/productService';
-import type { Product } from '../../types/product';
+import type { Product, ProductSelection, ProductStatus, ProductSourceStatus, ProductSelectionStatus } from '../../types/product';
 import type { ProductQueryParams } from '../../services/productService';
+import EditSelectionForm from './EditSelectionForm';
 
-interface ProductListingItem extends Product {
+interface ProductListingItem extends Omit<Product, 'status'> {
   store: string;
   originalPrice: number;
   price: number;
@@ -17,7 +18,37 @@ interface ProductListingItem extends Product {
   status: 'draft' | 'selling' | 'offline';
   createdAt: string;
   updatedAt: string;
+  source_status: ProductSourceStatus;
 }
+
+// 将商品状态转换为选品状态
+const convertToSelectionStatus = (status: 'draft' | 'selling' | 'offline'): ProductSelectionStatus => {
+  switch (status) {
+    case 'draft':
+    case 'selling':
+      return 'pending';
+    case 'offline':
+      return 'inactive';
+    default:
+      return 'pending';
+  }
+};
+
+// 将字符串转换为数字
+const parseNumber = (value: string | number): number => {
+  if (typeof value === 'number') return value;
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+};
+
+// 将API返回的数据转换为正确的类型
+const convertApiData = (item: any): ProductListingItem => ({
+  ...item,
+  originalPrice: parseNumber(item.originalPrice),
+  price: parseNumber(item.price),
+  stock: parseNumber(item.stock),
+  sales: parseNumber(item.sales),
+});
 
 const { Search } = Input;
 
@@ -29,7 +60,6 @@ const ProductListing: React.FC = () => {
   const [selectedProducts, setSelectedProducts] = useState<ProductListingItem[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [currentItem, setCurrentItem] = useState<ProductListingItem>();
-  const [form] = Form.useForm();
   const { storeAccounts } = useSettingsStore();
 
   // 获取商品列表
@@ -37,7 +67,7 @@ const ProductListing: React.FC = () => {
     try {
       setLoading(true);
       const response = await getProducts(params);
-      setData(response.items);
+      setData(response.items.map(convertApiData));
       setTotal(response.total);
     } catch (error) {
       message.error('获取商品列表失败');
@@ -46,15 +76,15 @@ const ProductListing: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
   // 编辑商品
   const handleEdit = (record: ProductListingItem) => {
     setCurrentItem(record);
-    form.setFieldsValue(record);
     setIsModalVisible(true);
+  };
+
+  // 复制商品
+  const handleCopy = (record: ProductListingItem) => {
+    // 实现复制功能
   };
 
   // 删除商品
@@ -64,7 +94,7 @@ const ProductListing: React.FC = () => {
       content: `确定删除商品"${record.name}"吗？删除后不可恢复。`,
       async onOk() {
         try {
-          await deleteProduct(record.id);
+          await deleteProduct(Number(record.id));
           message.success('删除成功');
           fetchProducts();
         } catch (error) {
@@ -74,67 +104,22 @@ const ProductListing: React.FC = () => {
     });
   };
 
-  // 复制商品到其他店铺
-  const handleCopy = (record: ProductListingItem) => {
-    Modal.confirm({
-      title: '复制商品',
-      content: (
-        <Form layout="vertical">
-          <Form.Item
-            label="选择目标店铺"
-            name="targetStores"
-            rules={[{ required: true, message: '请选择至少一个店铺' }]}
-          >
-            <Select
-              mode="multiple"
-              placeholder="请选择要复制到的店铺"
-              style={{ width: '100%' }}
-              options={storeAccounts
-                .filter(account => account.id !== record.store)
-                .map(account => ({
-                  label: `${account.name} (${account.platform})`,
-                  value: account.id,
-                }))}
-            />
-          </Form.Item>
-        </Form>
-      ),
-      async onOk() {
-        try {
-          const values = await form.validateFields();
-          const { targetStores } = values;
-
-          // 为每个目标店铺创建商品副本
-          await Promise.all(
-            targetStores.map((storeId: string) =>
-              createProduct({
-                ...record,
-                id: undefined,
-                store: storeId,
-                status: 'draft',
-              })
-            )
-          );
-
-          message.success('复制成功');
-          fetchProducts();
-        } catch (error) {
-          message.error('复制失败');
-        }
-      },
-    });
-  };
-
   // 保存商品
-  const handleSave = async () => {
+  const handleSave = async (values: Partial<ProductSelection>) => {
     try {
-      const values = await form.validateFields();
-      if (currentItem) {
-        await updateProduct(currentItem.id, values);
-        message.success('编辑成功');
-      }
+      if (!currentItem) return;
+
+      // 更新商品数据
+      const updatedProduct = {
+        ...currentItem,
+        ...values,
+        status: convertToSelectionStatus(currentItem.status),
+      };
+
+      await updateProduct(Number(currentItem.id), updatedProduct);
+      message.success('编辑成功');
       setIsModalVisible(false);
-      form.resetFields();
+      setCurrentItem(undefined);
       fetchProducts();
     } catch (error) {
       message.error('操作失败');
@@ -185,6 +170,29 @@ const ProductListing: React.FC = () => {
     }
   };
 
+  // 批量删除商品
+  const handleBatchDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的商品');
+      return;
+    }
+    Modal.confirm({
+      title: '批量删除',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个商品吗？删除后不可恢复。`,
+      async onOk() {
+        try {
+          await Promise.all(selectedRowKeys.map(id => deleteProduct(Number(id))));
+          message.success('删除成功');
+          setSelectedRowKeys([]);
+          setSelectedProducts([]);
+          fetchProducts();
+        } catch (error) {
+          message.error('删除失败');
+        }
+      },
+    });
+  };
+
   // 批量操作菜单
   const batchOperationItems = [
     {
@@ -197,27 +205,7 @@ const ProductListing: React.FC = () => {
       key: 'delete',
       label: '批量删除',
       icon: <DeleteOutlined />,
-      onClick: () => {
-        if (selectedRowKeys.length === 0) {
-          message.warning('请先选择要删除的商品');
-          return;
-        }
-        Modal.confirm({
-          title: '批量删除',
-          content: `确定要删除选中的 ${selectedRowKeys.length} 个商品吗？删除后不可恢复。`,
-          async onOk() {
-            try {
-              await Promise.all(selectedRowKeys.map(id => deleteProduct(id as string)));
-              message.success('删除成功');
-              setSelectedRowKeys([]);
-              setSelectedProducts([]);
-              fetchProducts();
-            } catch (error) {
-              message.error('删除失败');
-            }
-          },
-        });
-      },
+      onClick: handleBatchDelete,
     },
   ];
 
@@ -239,14 +227,14 @@ const ProductListing: React.FC = () => {
       dataIndex: 'originalPrice',
       key: 'originalPrice',
       width: 100,
-      render: (price: string) => `￥${price}`,
+      render: (price: number) => `￥${price}`,
     },
     {
       title: '售价',
       dataIndex: 'price',
       key: 'price',
       width: 100,
-      render: (price: string) => `￥${price}`,
+      render: (price: number) => `￥${price}`,
     },
     {
       title: '库存',
@@ -358,90 +346,26 @@ const ProductListing: React.FC = () => {
       <Modal
         title="编辑商品"
         open={isModalVisible}
-        onOk={handleSave}
         onCancel={() => {
           setIsModalVisible(false);
-          form.resetFields();
+          setCurrentItem(undefined);
         }}
+        footer={null}
         width={800}
       >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="name"
-            label="商品名称"
-            rules={[{ required: true, message: '请输入商品名称' }]}
-          >
-            <Input />
-          </Form.Item>
-
-          <Form.Item
-            name="category"
-            label="商品分类"
-            rules={[{ required: true, message: '请选择商品分类' }]}
-          >
-            <Select
-              placeholder="请选择商品分类"
-              options={[
-                { label: '游戏充值', value: '游戏充值' },
-                { label: '账号租赁', value: '账号租赁' },
-                { label: '代练代打', value: '代练代打' },
-              ]}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="originalPrice"
-            label="原价"
-            rules={[{ required: true, message: '请输入原价' }]}
-          >
-            <InputNumber
-              style={{ width: '100%' }}
-              min={0}
-              precision={2}
-              prefix="￥"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="price"
-            label="售价"
-            rules={[{ required: true, message: '请输入售价' }]}
-          >
-            <InputNumber
-              style={{ width: '100%' }}
-              min={0}
-              precision={2}
-              prefix="￥"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="stock"
-            label="库存"
-            rules={[{ required: true, message: '请输入库存' }]}
-          >
-            <InputNumber
-              style={{ width: '100%' }}
-              min={0}
-              precision={0}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="status"
-            label="状态"
-            rules={[{ required: true, message: '请选择状态' }]}
-          >
-            <Select
-              placeholder="请选择商品状态"
-              options={[
-                { label: '草稿', value: 'draft' },
-                { label: '在售', value: 'selling' },
-                { label: '下架', value: 'offline' },
-              ]}
-            />
-          </Form.Item>
-        </Form>
+        {currentItem && (
+          <EditSelectionForm
+            initialValues={{
+              ...currentItem,
+              status: convertToSelectionStatus(currentItem.status),
+            }}
+            onSubmit={handleSave}
+            onCancel={() => {
+              setIsModalVisible(false);
+              setCurrentItem(undefined);
+            }}
+          />
+        )}
       </Modal>
     </div>
   );

@@ -21,7 +21,7 @@ import {
 import useSettingsStore from '../../store/settingsStore';
 import useSelectionStore from '../../store/selectionStore';
 import CreateProductForm from './CreateProductForm';
-import EditProductForm from './EditProductForm';
+import EditSelectionForm from './EditSelectionForm';
 import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
 import type { TableProps } from 'antd';
 import type { ColumnsType, SortOrder } from 'antd/es/table/interface';
@@ -38,6 +38,8 @@ const { confirm } = Modal;
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
+
+type RangeValue<T> = [T | null, T | null] | null;
 
 // 商品状态配置
 const statusConfig: Record<ProductSourceStatus, { text: string; color: string; icon: React.ReactNode }> = {
@@ -112,7 +114,7 @@ const ProductLibrary: React.FC = () => {
       const searchLower = searchText.toLowerCase();
       filteredData = filteredData.filter(item => 
         item.name.toLowerCase().includes(searchLower) ||
-        item.category.toLowerCase().includes(searchLower)
+        (item.category && item.category.toLowerCase().includes(searchLower))
       );
     }
 
@@ -197,7 +199,7 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 处理编辑
-  const handleEdit = (record: Product) => {
+  const handleEdit = (record: ProductSelection) => {
     setSelectedProduct(record);
     setIsEditModalVisible(true);
   };
@@ -256,22 +258,25 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 处理编辑表单提交
-  const handleEditSubmit = async (values: any) => {
+  const handleEditSubmit = async (values: Partial<ProductSelection>) => {
     try {
       setLoading(true);
+      if (!selectedProduct) {
+        throw new Error('未选择要编辑的选品');
+      }
       // 更新选品数据
-      const updatedSelection = {
+      const updatedSelection: ProductSelection = {
         ...selectedProduct,
         ...values,
         commonImages: values.commonImages?.map((img: any) => ({
           id: img.id,
-          url: img.url,  // 原图 URL
-          thumbUrl: img.thumbUrl,  // 缩略图 URL
+          url: img.url,
+          thumbUrl: img.thumbUrl,
           type: 'common' as const,
-          sort: values.commonImages.indexOf(img),
+          sort: values.commonImages?.indexOf(img) ?? 0,
           createdAt: img.createdAt || new Date().toISOString(),
           size: img.size
-        })),
+        })) || [],
         lastUpdated: new Date().toISOString()
       };
       addSelection(updatedSelection);
@@ -521,8 +526,10 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 处理日期范围变化
-  const handleDateRangeChange = (dates: RangeValue<Dayjs>) => {
-    setDateRange(dates);
+  const handleDateRangeChange = (dates: RangeValue<Dayjs> | null) => {
+    if (dates && dates[0] && dates[1]) {
+      setDateRange(dates);
+    }
   };
 
   // 清除日期筛选
@@ -574,10 +581,7 @@ const ProductLibrary: React.FC = () => {
           </Space>
         </div>
 
-        <ProductFilter 
-          onFilter={handleFilter} 
-          showDateFilter={false} // 禁用日期筛选
-        />
+        <ProductFilter onFilter={handleFilter} />
 
         <Table
           columns={columns}
@@ -696,7 +700,7 @@ const ProductLibrary: React.FC = () => {
 
       {/* 编辑商品弹窗 */}
       <Modal
-        title="编辑商品"
+        title="编辑选品"
         open={isEditModalVisible}
         onCancel={() => {
           setIsEditModalVisible(false);
@@ -708,13 +712,14 @@ const ProductLibrary: React.FC = () => {
         destroyOnClose
       >
         {selectedProduct && (
-          <EditProductForm
+          <CreateProductForm
             initialValues={selectedProduct}
             onSubmit={handleEditSubmit}
             onCancel={() => {
               setIsEditModalVisible(false);
               setSelectedProduct(null);
             }}
+            mode="edit"
           />
         )}
       </Modal>

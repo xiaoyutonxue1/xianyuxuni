@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown } from 'antd';
+import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown, Progress } from 'antd';
 import { PlusOutlined, EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons';
 import EditProductForm from './EditProductForm';
 import type { Product, ProductSelection, ProductSourceStatus, ProductStatus, ProductCategory } from '../../types/product';
@@ -45,6 +45,7 @@ const ProductManagement: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProductStatus | ''>('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [completenessFilter, setCompletenessFilter] = useState<string>('');
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<Product[]>([]);
@@ -79,6 +80,39 @@ const ProductManagement: React.FC = () => {
     // 分类筛选
     if (categoryFilter) {
       filteredData = filteredData.filter(item => item.category === categoryFilter);
+    }
+
+    // 完整度筛选
+    if (completenessFilter) {
+      filteredData = filteredData.filter(item => {
+        const incomplete = getIncompleteItems(item);
+        switch (completenessFilter) {
+          case 'missing_name':
+            return !item.name;
+          case 'missing_category':
+            return !item.category;
+          case 'missing_price':
+            return typeof item.price !== 'number';
+          case 'missing_stock':
+            return typeof item.stock !== 'number';
+          case 'missing_delivery':
+            return !item.deliveryMethod || !item.deliveryInfo;
+          case 'missing_cover':
+            return !item.coverImage;
+          case 'missing_images':
+            return !item.commonImages?.length;
+          case 'missing_title':
+            return !item.distributedTitle;
+          case 'missing_content':
+            return !item.distributedContent;
+          case 'incomplete':
+            return incomplete.length > 0;
+          case 'complete':
+            return incomplete.length === 0;
+          default:
+            return true;
+        }
+      });
     }
 
     // 日期范围筛选
@@ -439,6 +473,61 @@ const ProductManagement: React.FC = () => {
     ]
   };
 
+  // 计算商品完整度
+  const calculateCompleteness = (record: Product): number => {
+    let total = 0;
+    let completed = 0;
+
+    // 基础信息检查
+    if (record.name) completed++;
+    if (record.category) completed++;
+    if (typeof record.price === 'number') completed++;
+    if (typeof record.stock === 'number') completed++;
+    total += 4;
+
+    // 发货信息检查
+    total += 2;
+    if (record.deliveryMethod) completed++;
+    if (record.deliveryInfo) completed++;
+
+    // 图片检查
+    total += 2;
+    if (record.coverImage) completed++;
+    if (record.commonImages && record.commonImages.length > 0) completed++;
+
+    // 分发内容检查
+    total += 2;
+    if (record.distributedTitle) completed++;
+    if (record.distributedContent) completed++;
+
+    return Math.floor((completed / total) * 100);
+  };
+
+  // 获取未填写的项目
+  const getIncompleteItems = (record: Product): string[] => {
+    const incomplete: string[] = [];
+
+    // 基础信息检查
+    if (!record.name) incomplete.push('商品名称');
+    if (!record.category) incomplete.push('商品分类');
+    if (typeof record.price !== 'number') incomplete.push('售价');
+    if (typeof record.stock !== 'number') incomplete.push('库存');
+    
+    // 发货信息检查
+    if (!record.deliveryMethod) incomplete.push('发货方式');
+    if (!record.deliveryInfo) incomplete.push('发货信息');
+    
+    // 图片检查
+    if (!record.coverImage) incomplete.push('商品头图');
+    if (!record.commonImages?.length) incomplete.push('公共图片');
+    
+    // 分发内容检查
+    if (!record.distributedTitle) incomplete.push('商品标题');
+    if (!record.distributedContent) incomplete.push('商品文案');
+
+    return incomplete;
+  };
+
   const columns: ColumnsType<Product> = [
     {
       title: '商品信息',
@@ -568,6 +657,41 @@ const ProductManagement: React.FC = () => {
       defaultSortOrder: 'descend',
     },
     {
+      title: '完整度',
+      key: 'completeness',
+      width: 150,
+      render: (_, record) => {
+        const percent = calculateCompleteness(record);
+        const incomplete = getIncompleteItems(record);
+        return (
+          <Popover
+            content={
+              incomplete.length > 0 ? (
+                <div>
+                  <div className="text-red-500 mb-2">未填写项目：</div>
+                  <ul className="list-disc pl-4">
+                    {incomplete.map((item, index) => (
+                      <li key={index}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="text-green-500">所有必填项目已完成</div>
+              )
+            }
+            title="完整度详情"
+            trigger="hover"
+          >
+            <Space direction="vertical" size={0} style={{ width: '100%' }}>
+              <Progress percent={percent} size="small" />
+              <span className="text-xs text-gray-500">{`${percent}%`}</span>
+            </Space>
+          </Popover>
+        );
+      },
+      sorter: (a, b) => calculateCompleteness(a) - calculateCompleteness(b),
+    },
+    {
       title: '操作',
       key: 'action',
       width: 180,
@@ -637,6 +761,28 @@ const ProductManagement: React.FC = () => {
                   label: category,
                   value: category,
                 })) || [])
+              ]}
+            />
+            <Select<string>
+              placeholder="完整度筛选"
+              style={{ width: 160 }}
+              value={completenessFilter}
+              onChange={setCompletenessFilter}
+              allowClear
+              options={[
+                { label: '全部商品', value: '' },
+                { label: '完整商品', value: 'complete' },
+                { label: '不完整商品', value: 'incomplete' },
+                { type: 'divider' },
+                { label: '缺少商品名称', value: 'missing_name' },
+                { label: '缺少商品分类', value: 'missing_category' },
+                { label: '缺少售价', value: 'missing_price' },
+                { label: '缺少库存', value: 'missing_stock' },
+                { label: '缺少发货信息', value: 'missing_delivery' },
+                { label: '缺少商品头图', value: 'missing_cover' },
+                { label: '缺少公共图片', value: 'missing_images' },
+                { label: '缺少商品标题', value: 'missing_title' },
+                { label: '缺少商品文案', value: 'missing_content' },
               ]}
             />
           </Space>
