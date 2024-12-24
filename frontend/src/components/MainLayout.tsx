@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Button } from 'antd';
+import { Layout, Menu, Button, Avatar, Dropdown } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import type { MenuProps } from 'antd';
 import {
   PlusOutlined,
   SwapOutlined,
@@ -9,7 +10,10 @@ import {
   DashboardOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  UserOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
+import { useAuthStore } from '@/store/auth';
 
 const { Header, Content, Sider } = Layout;
 
@@ -17,6 +21,7 @@ const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { user, logout } = useAuthStore();
 
   const menuItems = [
     {
@@ -45,6 +50,37 @@ const MainLayout: React.FC = () => {
     },
   ];
 
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: (
+        <div style={{ minWidth: '120px' }}>
+          <div>{user?.username}</div>
+          <div style={{ fontSize: '12px', color: '#666' }}>角色：{user?.role}</div>
+        </div>
+      ),
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: '设置',
+      onClick: () => navigate('/settings'),
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: () => {
+        logout();
+        navigate('/login');
+      },
+    },
+  ];
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header 
@@ -70,13 +106,18 @@ const MainLayout: React.FC = () => {
           />
           <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>虚拟商品管理系统</h1>
         </div>
-        <Button 
-          type="text" 
-          icon={<SettingOutlined />}
-          onClick={() => navigate('/settings')}
-        >
-          设置
-        </Button>
+        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+          <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <Avatar 
+              style={{ 
+                backgroundColor: '#1677ff',
+                marginRight: 8 
+              }} 
+              icon={<UserOutlined />}
+            />
+            <span>{user?.username}</span>
+          </div>
+        </Dropdown>
       </Header>
       <Layout style={{ marginTop: 64 }}>
         <Sider
