@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, DatePicker } from 'antd';
+import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, DatePicker, Image } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { 
   DeleteOutlined, 
@@ -13,6 +13,8 @@ import {
   SyncOutlined,
   CalendarOutlined,
   ExclamationCircleOutlined,
+  PlusOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
 import useSelectionStore from '../../store/selectionStore';
@@ -81,6 +83,7 @@ const ProductLibrary: React.FC = () => {
   const confirmModalRef = useRef<any>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>([null, null]);
+  const [filteredData, setFilteredData] = useState<ProductSelection[]>([]);
 
   // 检查选品是否缺少某个字段
   const isMissingField = (selection: ProductSelection, field: string) => {
@@ -123,7 +126,7 @@ const ProductLibrary: React.FC = () => {
       });
     }
 
-    // 分类筛选
+    // 类筛选
     if (filterValues.category) {
       filteredData = filteredData.filter(item => 
         item.category === filterValues.category
@@ -207,7 +210,7 @@ const ProductLibrary: React.FC = () => {
 
   useEffect(() => {
     setFilteredData(getFilteredProducts());
-  }, [dateRange, /* other dependencies */]);
+  }, [dateRange, searchText, filterValues, selections]);
 
   // 处理删除
   const handleDelete = (id: string) => {
@@ -666,15 +669,10 @@ const ProductLibrary: React.FC = () => {
 
         <Table
           columns={columns}
-          dataSource={getFilteredProducts()}
+          dataSource={filteredData}
           rowKey="id"
           loading={loading}
-          rowSelection={{
-            selectedRowKeys,
-            onChange: (selectedKeys: React.Key[], selectedRows: ProductSelection[]) => {
-              setSelectedRowKeys(selectedKeys);
-            }
-          }}
+          rowSelection={rowSelection}
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,

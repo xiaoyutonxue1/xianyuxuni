@@ -390,7 +390,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
 
               <Form.Item
                 name="category"
-                label="商品分类"
+                label="��品分类"
                 rules={[{ required: true, message: '请选择商品分类' }]}
               >
                 <Select placeholder="请选择商品分类">
@@ -418,7 +418,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                 <Upload
                   {...uploadProps}
                   multiple
-                  className="upload-list-compact"
+                  className="upload-list-inline"
                   maxCount={27}
                   listType="picture-card"
                   showUploadList={{
@@ -426,6 +426,10 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
                     showRemoveIcon: true,
                     showDownloadIcon: false
                   }}
+                  style={{
+                    '--upload-item-margin': '8px',
+                    '--upload-item-hover-border': '1px solid #1890ff'
+                  } as React.CSSProperties}
                   beforeUpload={(file, fileList) => {
                     if (fileList.length + 1 > 27) {
                       message.error('最多只能上传27张图片');
@@ -756,6 +760,104 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
           </div>
         </div>
       </Modal>
+
+      <style jsx global>{`
+        .upload-list-inline .ant-upload-list-picture-card {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--upload-item-margin, 8px);
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card-container {
+          margin: 0 !important;
+          width: 104px !important;
+          height: 104px !important;
+          position: relative;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item {
+          padding: 0 !important;
+          border: 1px solid #d9d9d9;
+          border-radius: 2px;
+          overflow: hidden;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item:hover {
+          border-color: #1890ff;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-thumbnail {
+          width: 100% !important;
+          height: 100% !important;
+          position: absolute;
+          top: 0;
+          left: 0;
+          object-fit: cover;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-thumbnail img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .upload-list-inline .ant-upload-select {
+          margin: 0 !important;
+          width: 104px !important;
+          height: 104px !important;
+          border: 1px dashed #d9d9d9;
+        }
+
+        /* 添加完整的阴影覆盖 */
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-actions {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.45) !important;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: all 0.3s;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item:hover .ant-upload-list-item-actions {
+          opacity: 1;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-actions .ant-upload-list-item-action {
+          color: #fff;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          margin: 0 4px;
+          transition: all 0.3s;
+          background: transparent;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-actions .ant-upload-list-item-action:hover {
+          transform: scale(1.2);
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-progress {
+          bottom: 0;
+          padding: 0;
+          background: rgba(255, 255, 255, 0.85);
+        }
+
+        /* 移除其他可能的背景 */
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-picture,
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item::before,
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item::after {
+          display: none !important;
+        }
+      `}</style>
     </>
   );
 };

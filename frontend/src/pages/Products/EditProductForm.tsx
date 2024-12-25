@@ -368,56 +368,59 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
               label="商品头图"
               rules={[{ required: true, message: '请上传商品头图' }]}
             >
-              <Upload
-                name="coverImage"
-                listType="picture-card"
-                showUploadList={true}
-                maxCount={1}
-                fileList={coverImageList}
-                beforeUpload={(file) => {
-                  const isImage = file.type.startsWith('image/');
-                  if (!isImage) {
-                    message.error('只能上传图片文件！');
+              <div className="bg-gray-50/50 p-4 rounded-lg border border-gray-100">
+                <Upload
+                  name="coverImage"
+                  listType="picture-card"
+                  showUploadList={true}
+                  maxCount={1}
+                  fileList={coverImageList}
+                  className="upload-list-inline"
+                  beforeUpload={(file) => {
+                    const isImage = file.type.startsWith('image/');
+                    if (!isImage) {
+                      message.error('只能上传图片文件！');
+                      return false;
+                    }
+                    // 读取文件并更新表单值
+                    getBase64(file).then(url => {
+                      const newFile: UploadFile = {
+                        uid: '-1',
+                        name: file.name,
+                        status: 'done',
+                        url: url,
+                        type: file.type,
+                        thumbUrl: url,
+                        originFileObj: file
+                      };
+                      setCoverImageList([newFile]);
+                      form.setFieldsValue({ coverImage: url });
+                    });
                     return false;
-                  }
-                  // 读取文件并更新表单值
-                  getBase64(file).then(url => {
-                    const newFile: UploadFile = {
-                      uid: '-1',
-                      name: file.name,
-                      status: 'done',
-                      url: url,
-                      type: file.type,
-                      thumbUrl: url,
-                      originFileObj: file
-                    };
-                    setCoverImageList([newFile]);
-                    form.setFieldsValue({ coverImage: url });
-                  });
-                  return false;
-                }}
-                onChange={({ fileList }) => {
-                  setCoverImageList(fileList);
-                  if (fileList.length === 0) {
-                    form.setFieldsValue({ coverImage: undefined });
-                  }
-                }}
-                onPreview={async (file) => {
-                  if (!file.url && !file.preview) {
-                    file.preview = await getBase64(file.originFileObj as File);
-                  }
-                  setPreviewImage(file.url || file.preview as string);
-                  setPreviewOpen(true);
-                  setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
-                }}
-              >
-                {!coverImageList.length && (
-                  <div className="flex flex-col items-center justify-center">
-                    <PlusOutlined />
-                    <div className="mt-2">上传头图</div>
-                  </div>
-                )}
-              </Upload>
+                  }}
+                  onChange={({ fileList }) => {
+                    setCoverImageList(fileList);
+                    if (fileList.length === 0) {
+                      form.setFieldsValue({ coverImage: undefined });
+                    }
+                  }}
+                  onPreview={async (file) => {
+                    if (!file.url && !file.preview) {
+                      file.preview = await getBase64(file.originFileObj as File);
+                    }
+                    setPreviewImage(file.url || file.preview as string);
+                    setPreviewOpen(true);
+                    setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
+                  }}
+                >
+                  {!coverImageList.length && (
+                    <div className="flex flex-col items-center justify-center">
+                      <PlusOutlined />
+                      <div className="mt-2">上传头图</div>
+                    </div>
+                  )}
+                </Upload>
+              </div>
             </Form.Item>
           </div>
           
@@ -466,25 +469,13 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
             <Upload
               {...uploadProps}
               multiple
-              className="upload-list-compact"
+              className="upload-list-inline"
               maxCount={27}
               listType="picture-card"
               showUploadList={{
                 showPreviewIcon: true,
                 showRemoveIcon: true,
                 showDownloadIcon: false
-              }}
-              beforeUpload={(file, fileList) => {
-                if (fileList.length + 1 > 27) {
-                  message.error('最多只能上传27张图片');
-                  return false;
-                }
-                const isImage = file.type.startsWith('image/');
-                if (!isImage) {
-                  message.error('只能上传图片文件！');
-                  return false;
-                }
-                return true;
               }}
             >
               {fileList.length >= 27 ? null : (
@@ -770,6 +761,104 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
           </div>
         </div>
       </Modal>
+
+      <style jsx global>{`
+        .upload-list-inline .ant-upload-list-picture-card {
+          display: flex;
+          flex-wrap: wrap;
+          gap: var(--upload-item-margin, 8px);
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card-container {
+          margin: 0 !important;
+          width: 104px !important;
+          height: 104px !important;
+          position: relative;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item {
+          padding: 0 !important;
+          border: 1px solid #d9d9d9;
+          border-radius: 2px;
+          overflow: hidden;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item:hover {
+          border-color: #1890ff;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-thumbnail {
+          width: 100% !important;
+          height: 100% !important;
+          position: absolute;
+          top: 0;
+          left: 0;
+          object-fit: cover;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-thumbnail img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .upload-list-inline .ant-upload-select {
+          margin: 0 !important;
+          width: 104px !important;
+          height: 104px !important;
+          border: 1px dashed #d9d9d9;
+        }
+
+        /* 添加完整的阴影覆盖 */
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-actions {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.45) !important;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: all 0.3s;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item:hover .ant-upload-list-item-actions {
+          opacity: 1;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-actions .ant-upload-list-item-action {
+          color: #fff;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          margin: 0 4px;
+          transition: all 0.3s;
+          background: transparent;
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-actions .ant-upload-list-item-action:hover {
+          transform: scale(1.2);
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-progress {
+          bottom: 0;
+          padding: 0;
+          background: rgba(255, 255, 255, 0.85);
+        }
+
+        /* 移除其他可能的背景 */
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item-picture,
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item::before,
+        .upload-list-inline .ant-upload-list-picture-card .ant-upload-list-item::after {
+          display: none !important;
+        }
+      `}</style>
     </>
   );
 };
