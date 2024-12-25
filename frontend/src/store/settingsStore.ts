@@ -12,30 +12,20 @@ export interface ProductTemplate {
 export interface StoreAccount {
   id: string;
   name: string;
-  description?: string;
-  features?: {
-    templates?: ProductTemplate[];
-  };
+  platform: string;
   watermarkText?: string;
   watermarkSettings?: {
     fontSize?: number;
     opacity?: number;
-    rotate?: number;
+    position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    rotation?: number;
+    mode?: 'single' | 'tile';
     color?: string;
-    repeat?: boolean;
-    gap?: number;
-  };
-  platform: string;
-  watermarkSettings?: {
-    fontSize: number;
-    opacity: number;
-    rotate: number;
-    color: string;
-    repeat: boolean;
-    gap: number;
+    useSmartColor?: boolean;
+    useRegionAnalysis?: boolean;
+    useContrastAnalysis?: boolean;
   };
   features: {
-    priceAdjustment: number;
     templates: ProductTemplate[];
   };
 }
