@@ -125,7 +125,6 @@ export interface CreateSelectionRequest {
   id?: string;  // 编辑时使用
   name: string;
   category: ProductCategory;
-  description: string;
   keywords?: string[];
   remark?: string;
   price: number;
@@ -138,14 +137,14 @@ export interface CreateSelectionRequest {
   productUrl?: string;
   coverImage?: string;
   method: 'manual' | 'crawler';
-  commonImages?: {
+  commonImages?: Array<{
     id: string;
     url: string;
     type: 'common';
     sort: number;
     createdAt: string;
     size?: number;
-  }[];
+  }>;
 }
 
 // 分配选品请求

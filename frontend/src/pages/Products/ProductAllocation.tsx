@@ -7,6 +7,7 @@ import useProductStore from '../../store/productStore';
 import useSelectionStore from '../../store/selectionStore';
 import type { ColumnsType } from 'antd/es/table/interface';
 import dayjs from 'dayjs';
+import { replaceTemplate } from '../../utils/template';
 
 const { Search } = Input;
 
@@ -199,7 +200,7 @@ const ProductAllocation: React.FC = () => {
             throw new Error(`店铺 ${storeAccount?.name} 未设置默认模板`);
           }
 
-          // 创建新商品
+          // 创建新商��
           const newProduct = {
             ...selection,
             id: `${selection.id}-${storeId}`,
@@ -209,8 +210,14 @@ const ProductAllocation: React.FC = () => {
             status: 'draft',
             distributedAt: new Date().toISOString(),
             lastUpdated: new Date().toISOString(),
-            distributedTitle: defaultTemplate.title.replace('{title}', selection.name),
-            distributedContent: defaultTemplate.description.replace('{description}', selection.description || '')
+            distributedTitle: replaceTemplate(defaultTemplate.title, {
+              title: selection.name,
+              deliveryMethod: selection.deliveryMethod || ''
+            }),
+            distributedContent: replaceTemplate(defaultTemplate.description, {
+              description: selection.description || '',
+              deliveryMethod: selection.deliveryMethod || ''
+            })
           };
           newProducts.push(newProduct);
         }
@@ -415,7 +422,7 @@ const ProductAllocation: React.FC = () => {
     }
   ];
 
-  // 表格选择配置
+  // 表��选择配置
   const rowSelection = {
     selectedRowKeys,
     onChange: (selectedKeys: string[], selectedRows: ProductSelection[]) => {
