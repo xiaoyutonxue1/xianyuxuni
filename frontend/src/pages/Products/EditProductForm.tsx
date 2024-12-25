@@ -329,12 +329,16 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
             <Form.Item
               name="distributedTitle"
               label="商品标题"
-              rules={[{ required: true, message: '请输入商品标题' }]}
+              rules={[
+                { required: true, message: '请输入商品标题' },
+                { max: 30, message: '标题不能超过30个字符' }
+              ]}
             >
               <Input.TextArea
                 placeholder="请输入商品标题"
-                rows={1}
-                autoSize={{ minRows: 1, maxRows: 2 }}
+                showCount
+                maxLength={30}
+                autoSize={{ minRows: 2, maxRows: 6 }}
               />
             </Form.Item>
           </div>
@@ -417,7 +421,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
             </Form.Item>
           </div>
           
-          <div className="col-span-9">
+          <div className="col-span-7">
             <Form.Item
               name="distributedContent"
               label="商品文案"
@@ -428,6 +432,21 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
                 rows={4}
                 style={{ height: '104px', resize: 'none' }}
               />
+            </Form.Item>
+          </div>
+
+          <div className="col-span-2">
+            <Form.Item
+              name="status"
+              label="状态"
+            >
+              <Select style={{ width: '100%' }}>
+                <Select.Option value="draft">草稿</Select.Option>
+                <Select.Option value="pending">待发布</Select.Option>
+                <Select.Option value="published">已发布</Select.Option>
+                <Select.Option value="failed">发布失败</Select.Option>
+                <Select.Option value="offline">已下架</Select.Option>
+              </Select>
             </Form.Item>
           </div>
         </div>

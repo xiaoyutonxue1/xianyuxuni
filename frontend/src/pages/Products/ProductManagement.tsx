@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown, Progress } from 'antd';
+import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown, Progress, Checkbox } from 'antd';
 import { PlusOutlined, EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons';
 import EditProductForm from './EditProductForm';
 import type { Product, ProductSelection, ProductSourceStatus, ProductStatus, ProductCategory } from '../../types/product';
@@ -25,7 +25,6 @@ const convertProductToSelection = (product: Product): ProductSelection => {
   console.log('Converting product to selection:', product);
   return {
     ...product,
-    status: 'pending',
     source_status: product.source === 'manual' ? 'manual' : 'crawler_success' as ProductSourceStatus,
   };
 };
@@ -51,6 +50,8 @@ const ProductManagement: React.FC = () => {
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<Product[]>([]);
+  const [exportModalVisible, setExportModalVisible] = useState(false);
+  const [updateStatusAfterExport, setUpdateStatusAfterExport] = useState(false);
   
   // 使用 store
   const { products, updateProduct, addProducts, removeProduct, updateDeliveryMethods } = useProductStore();
@@ -337,11 +338,11 @@ const ProductManagement: React.FC = () => {
           selectedRows.forEach(product => {
             removeProduct(product.id);
           });
-          message.success('批量删除成功');
+          message.success('批��删除成功');
           setSelectedRowKeys([]);
           setSelectedRows([]);
         } catch (error) {
-          message.error('���量删除失败');
+          message.error('批量删除失败');
         }
       }
     });
@@ -397,26 +398,23 @@ const ProductManagement: React.FC = () => {
   // 处理批量导出
   const handleBatchExport = async () => {
     try {
-      // 请求用户选择导出目录
       const dirHandle = await window.showDirectoryPicker({
         mode: 'readwrite'
       });
 
-      // 为每个选中的商品创建文件夹和文件
+      let successCount = 0;
+      let failedProducts: string[] = [];
+
       for (const product of selectedRows) {
         try {
-          console.log('开始导出商品:', product);
-          
-          // 获取店铺信息
           const store = storeAccounts.find(store => store.id === product.storeId);
           const storeName = store?.name || '未知店铺';
           
-          // 创建商品文件夹（格式：商品名称【店铺名称】）
-          const folderName = `${product.name}【${storeName}】`.replace(/[\\/:*?"<>|]/g, '_');
-          console.log('创建文件夹:', folderName);
+          // 使用 encodeURIComponent 处理文件夹名称中的中文
+          const folderName = encodeURIComponent(`${product.name}【${storeName}】`).replace(/%/g, '_');
           const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
 
-          // 创建并写入��个信息文件
+          // 创建文本文件时使用 TextEncoder 处理中文
           const files: Record<string, string> = {
             '商品名称.txt': product.name || '',
             '分类.txt': product.category || '',
@@ -431,56 +429,53 @@ const ProductManagement: React.FC = () => {
             '发布店铺.txt': `店铺名称：${storeName}\n平台：${store?.platform || '未知平台'}`
           };
 
-          // 如果有发货方式和发货信息，添加对应的文件
           if (product.deliveryMethod) {
             const deliveryFileName = `${product.deliveryMethod}.txt`;
             files[deliveryFileName] = product.deliveryInfo || '';
           }
 
-          // 写入所有文本文件
+          // 使用 TextEncoder 写入文件内容
           for (const [fileName, content] of Object.entries(files)) {
             const fileHandle = await folderHandle.getFileHandle(fileName, { create: true });
             const writable = await fileHandle.createWritable();
-            await writable.write(new TextEncoder().encode(content));
+            const encoder = new TextEncoder();
+            await writable.write(encoder.encode(content));
             await writable.close();
           }
 
           // 创建图片文件夹
-          console.log('创建图片文件夹');
           const imagesFolderHandle = await folderHandle.getDirectoryHandle('图片', { create: true });
 
-          // 保存封面图片
           if (product.coverImage) {
-            console.log('发现封面图片:', product.coverImage);
             await saveImage(product.coverImage, imagesFolderHandle, '封面图片.jpg');
-          } else {
-            console.log('没有封面图片');
           }
 
-          // 保存公共图片
           if (product.commonImages && product.commonImages.length > 0) {
-            console.log(`发现 ${product.commonImages.length} 张公共图片`);
             for (let i = 0; i < product.commonImages.length; i++) {
               const image = product.commonImages[i];
               if (image.url) {
-                console.log(`处理第 ${i + 1} 张公共图片:`, image.url);
                 await saveImage(image.url, imagesFolderHandle, `公共图片_${i + 1}.jpg`);
-              } else {
-                console.log(`第 ${i + 1} 张公共图片没有 URL`);
               }
             }
-          } else {
-            console.log('没有公共图片');
           }
 
-          console.log(`商品导出成功: ${product.name}`);
+          successCount++;
         } catch (error) {
           console.error(`导出商品失败: ${product.name}`, error);
-          message.error(`导出商品失败: ${product.name}`);
+          failedProducts.push(product.name);
         }
       }
 
-      message.success('导出完成');
+      if (successCount === selectedRows.length) {
+        message.success('所有商品导出成功');
+      } else if (successCount === 0) {
+        message.error('所有商品导出失败');
+      } else {
+        message.warning(
+          `部分商品导出成功（${successCount}/${selectedRows.length}）\n` +
+          `��败商品：${failedProducts.join('、')}`
+        );
+      }
     } catch (error) {
       console.error('Export error:', error);
       if (error instanceof Error && error.name === 'SecurityError') {
@@ -488,16 +483,91 @@ const ProductManagement: React.FC = () => {
       } else {
         message.error('导出失败');
       }
+      throw error; // 重新抛出错误以便上层函数处理
     }
   };
 
-  // 批量操作菜单项
-  const batchOperationItems = {
+  // 处理导出按钮点击
+  const handleExportClick = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要导出的商品');
+      return;
+    }
+    setExportModalVisible(true);
+  };
+
+  // 处理导出确认
+  const handleExportConfirm = async () => {
+    let exportSuccess = false;
+    
+    try {
+      // 执行导出逻辑
+      await handleBatchExport();
+      exportSuccess = true;
+      // 导出成功后立即关闭面板
+      setExportModalVisible(false);
+      setUpdateStatusAfterExport(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+
+    // 只有在导出成功且勾选了更新状态时，才更新商品状态
+    if (exportSuccess && updateStatusAfterExport && selectedRowKeys.length > 0) {
+      let successCount = 0;
+      let failedProducts: string[] = [];
+
+      // 逐个更新商品状态
+      for (const product of selectedRows) {
+        try {
+          const updatedProduct = {
+            ...product,
+            status: 'pending' as ProductStatus,
+            lastUpdated: new Date().toISOString()
+          };
+          
+          await updateProduct(updatedProduct);
+          successCount++;
+        } catch (error) {
+          console.error(`Failed to update status for product: ${product.name}`, error);
+          failedProducts.push(product.name);
+        }
+      }
+
+      // 根据更新结果显示提示
+      if (successCount === selectedRows.length) {
+        message.success('商品状态已全部更新为待发布');
+      } else if (successCount === 0) {
+        message.error('商品状态更新失败');
+      } else {
+        message.warning(
+          `部分商品状态更新成功（${successCount}/${selectedRows.length}）\n` +
+          `失败商品：${failedProducts.join('、')}`
+        );
+      }
+
+      // 刷新商品列表
+      fetchProducts();
+    }
+  };
+
+  // 处理导出取消
+  const handleExportCancel = () => {
+    setExportModalVisible(false);
+    setUpdateStatusAfterExport(false);
+  };
+
+  // 批量操作菜单
+  const batchOperationMenu = {
     items: [
       {
         key: 'export',
         label: (
-          <Button type="text" icon={<ExportOutlined />} onClick={handleBatchExport}>
+          <Button 
+            type="text" 
+            icon={<ExportOutlined />} 
+            onClick={handleExportClick}
+            disabled={selectedRowKeys.length === 0}
+          >
             批量导出
           </Button>
         )
@@ -773,7 +843,7 @@ const ProductManagement: React.FC = () => {
         <div className="flex justify-between mb-4">
           <Space>
             {selectedRowKeys.length > 0 && (
-              <Dropdown menu={batchOperationItems} placement="bottomLeft">
+              <Dropdown menu={batchOperationMenu} placement="bottomLeft">
                 <Button>
                   <Space>
                     批量操作
@@ -901,6 +971,28 @@ const ProductManagement: React.FC = () => {
         ) : (
           <div>No product selected</div>
         )}
+      </Modal>
+      
+      {/* 导出面板 */}
+      <Modal
+        title="导出商品"
+        open={exportModalVisible}
+        onOk={handleExportConfirm}
+        onCancel={handleExportCancel}
+        okText="确认导出"
+        cancelText="取消"
+      >
+        <div className="py-4">
+          <Checkbox
+            checked={updateStatusAfterExport}
+            onChange={(e) => setUpdateStatusAfterExport(e.target.checked)}
+          >
+            导出后将选中商品状态更新为待发布
+          </Checkbox>
+          <div className="mt-2 text-gray-500 text-sm">
+            已选择 {selectedRowKeys.length} 个商品
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -90,7 +90,7 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
       style={{ marginBottom: 16, padding: 16, background: '#f5f5f5', borderRadius: 4 }}
     >
       {/* 分类筛选 */}
-      <Form.Item name="category" label="商品分��">
+      <Form.Item name="category" label="商品分类">
         <Select
           style={{ width: 160 }}
           placeholder="选择分类"
