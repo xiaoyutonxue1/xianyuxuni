@@ -174,6 +174,16 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
     setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
   };
 
+  // 处理图片拖拽排序
+  const moveImage = (dragIndex: number, hoverIndex: number) => {
+    const dragItem = fileList[dragIndex];
+    const newFileList = [...fileList];
+    newFileList.splice(dragIndex, 1);
+    newFileList.splice(hoverIndex, 0, dragItem);
+    setFileList(newFileList);
+    updateCompleteness();
+  };
+
   // 图片上传配置
   const uploadProps = {
     listType: 'picture-card' as const,
@@ -206,6 +216,32 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
         return false;
       }
       return true;
+    },
+    itemRender: (originNode: React.ReactElement, file: UploadFile, fileList: UploadFile[], actions: { download: () => void; preview: () => void; remove: () => void }) => {
+      const index = fileList.indexOf(file);
+      return (
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', index.toString());
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+            const hoverIndex = index;
+            if (dragIndex === hoverIndex) return;
+            moveImage(dragIndex, hoverIndex);
+          }}
+          style={{ cursor: 'move' }}
+        >
+          {originNode}
+        </div>
+      );
     }
   };
 
@@ -390,7 +426,7 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
 
               <Form.Item
                 name="category"
-                label="��品分类"
+                label="选品分类"
                 rules={[{ required: true, message: '请选择商品分类' }]}
               >
                 <Select placeholder="请选择商品分类">

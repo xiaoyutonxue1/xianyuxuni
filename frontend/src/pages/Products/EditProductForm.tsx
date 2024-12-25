@@ -167,6 +167,15 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
     setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
   };
 
+  // 处理图片拖拽排序
+  const moveImage = (dragIndex: number, hoverIndex: number) => {
+    const dragItem = fileList[dragIndex];
+    const newFileList = [...fileList];
+    newFileList.splice(dragIndex, 1);
+    newFileList.splice(hoverIndex, 0, dragItem);
+    setFileList(newFileList);
+  };
+
   // 图片上传配置
   const uploadProps = {
     listType: 'picture-card' as const,
@@ -198,6 +207,32 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
         return false;
       }
       return true;
+    },
+    itemRender: (originNode: React.ReactElement, file: UploadFile, fileList: UploadFile[], actions: { download: () => void; preview: () => void; remove: () => void }) => {
+      const index = fileList.indexOf(file);
+      return (
+        <div
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', index.toString());
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const dragIndex = parseInt(e.dataTransfer.getData('text/plain'));
+            const hoverIndex = index;
+            if (dragIndex === hoverIndex) return;
+            moveImage(dragIndex, hoverIndex);
+          }}
+          style={{ cursor: 'move' }}
+        >
+          {originNode}
+        </div>
+      );
     }
   };
 
@@ -368,59 +403,57 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
               label="商品头图"
               rules={[{ required: true, message: '请上传商品头图' }]}
             >
-              <div className="bg-gray-50/50 p-4 rounded-lg border border-gray-100">
-                <Upload
-                  name="coverImage"
-                  listType="picture-card"
-                  showUploadList={true}
-                  maxCount={1}
-                  fileList={coverImageList}
-                  className="upload-list-inline"
-                  beforeUpload={(file) => {
-                    const isImage = file.type.startsWith('image/');
-                    if (!isImage) {
-                      message.error('只能上传图片文件！');
-                      return false;
-                    }
-                    // 读取文件并更新表单值
-                    getBase64(file).then(url => {
-                      const newFile: UploadFile = {
-                        uid: '-1',
-                        name: file.name,
-                        status: 'done',
-                        url: url,
-                        type: file.type,
-                        thumbUrl: url,
-                        originFileObj: file
-                      };
-                      setCoverImageList([newFile]);
-                      form.setFieldsValue({ coverImage: url });
-                    });
+              <Upload
+                name="coverImage"
+                listType="picture-card"
+                showUploadList={true}
+                maxCount={1}
+                fileList={coverImageList}
+                className="upload-list-inline"
+                beforeUpload={(file) => {
+                  const isImage = file.type.startsWith('image/');
+                  if (!isImage) {
+                    message.error('只能上传图片文件！');
                     return false;
-                  }}
-                  onChange={({ fileList }) => {
-                    setCoverImageList(fileList);
-                    if (fileList.length === 0) {
-                      form.setFieldsValue({ coverImage: undefined });
-                    }
-                  }}
-                  onPreview={async (file) => {
-                    if (!file.url && !file.preview) {
-                      file.preview = await getBase64(file.originFileObj as File);
-                    }
-                    setPreviewImage(file.url || file.preview as string);
-                    setPreviewOpen(true);
-                    setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
-                  }}
-                >
-                  {!coverImageList.length && (
-                    <div className="flex flex-col items-center justify-center">
-                      <PlusOutlined />
-                      <div className="mt-2">上传头图</div>
-                    </div>
-                  )}
-                </Upload>
-              </div>
+                  }
+                  // 读取文件并更新表单值
+                  getBase64(file).then(url => {
+                    const newFile: UploadFile = {
+                      uid: '-1',
+                      name: file.name,
+                      status: 'done',
+                      url: url,
+                      type: file.type,
+                      thumbUrl: url,
+                      originFileObj: file
+                    };
+                    setCoverImageList([newFile]);
+                    form.setFieldsValue({ coverImage: url });
+                  });
+                  return false;
+                }}
+                onChange={({ fileList }) => {
+                  setCoverImageList(fileList);
+                  if (fileList.length === 0) {
+                    form.setFieldsValue({ coverImage: undefined });
+                  }
+                }}
+                onPreview={async (file) => {
+                  if (!file.url && !file.preview) {
+                    file.preview = await getBase64(file.originFileObj as File);
+                  }
+                  setPreviewImage(file.url || file.preview as string);
+                  setPreviewOpen(true);
+                  setPreviewTitle(file.name || file.url!.substring(file.url!.lastIndexOf('/') + 1));
+                }}
+              >
+                {!coverImageList.length && (
+                  <div className="flex flex-col items-center justify-center">
+                    <PlusOutlined />
+                    <div className="mt-2">上传头图</div>
+                  </div>
+                )}
+              </Upload>
             </Form.Item>
           </div>
           
@@ -459,7 +492,7 @@ const EditProductForm: React.FC<EditProductFormProps> = ({
           label={
             <Space>
               公共图片
-              <Tooltip title="这些图片会同步到所有店铺，可以拖拽调整顺序，多上传27张">
+              <Tooltip title="这些图片会同步到所有店铺，可以拖拽调整顺序，最多上传27张">
                 <InfoCircleFilled style={{ color: '#1890ff' }} />
               </Tooltip>
             </Space>

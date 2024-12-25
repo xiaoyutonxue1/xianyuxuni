@@ -385,11 +385,11 @@ const ProductManagement: React.FC = () => {
           const store = storeAccounts.find(store => store.id === product.storeId);
           const storeName = store?.name || '未知店铺';
           
-          // 使用 encodeURIComponent 处理文件夹名称中的中文
-          const folderName = encodeURIComponent(`${product.name}【${storeName}】`).replace(/%/g, '_');
+          // 直接使用原始名称，不进行编码
+          const folderName = `${product.name}【${storeName}】`;
           const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
 
-          // 创建文本文��时使用 TextEncoder 处理中文
+          // 创建文本文件时使用 TextEncoder 处理中文
           const files: Record<string, string> = {
             '商品名称.txt': product.name || '',
             '分类.txt': product.category || '',
@@ -491,7 +491,7 @@ const ProductManagement: React.FC = () => {
       let successCount = 0;
       let failedProducts: string[] = [];
 
-      // 逐个更新���品状态
+      // 逐个更新商品状态
       for (const product of selectedRows) {
         try {
           const updatedProduct = {
@@ -728,7 +728,7 @@ const ProductManagement: React.FC = () => {
     {
       title: (
         <Space>
-          创建时间
+          新建时间
           <Popover 
             content={dateFilterContent}
             trigger="click"
@@ -857,7 +857,7 @@ const ProductManagement: React.FC = () => {
               ]}
             />
             <Select
-              placeholder="���货方式"
+              placeholder="发货方式"
               style={{ width: 160 }}
               value={deliveryMethodFilter}
               onChange={setDeliveryMethodFilter}
