@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Tabs, Form, Input, Button, Select, InputNumber, Switch, Space, Tag, message, Modal, Table, Divider } from 'antd';
+import { Card, Tabs, Form, Input, Button, Select, InputNumber, Switch, Space, Tag, message, Modal, Table, Divider, Slider } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
 import type { StoreGroup, StoreAccount, DeliveryMethodSetting, ProductTemplate } from '../../store/settingsStore';
@@ -233,13 +233,85 @@ const StoreForm: React.FC<{
     }
   }, [form, initialValues]);
 
+  // 初始化水印预览
+  useEffect(() => {
+    updateWatermarkPreview(
+      initialValues?.watermarkText,
+      initialValues?.watermarkSettings
+    );
+  }, [initialValues?.watermarkText, initialValues?.watermarkSettings]);
+
+  // 更新水印预览
+  const updateWatermarkPreview = (text?: string, settings?: any) => {
+    const canvas = document.getElementById('watermarkPreview') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 绘制背景
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    if (!text) return;
+
+    // 获取水印设置
+    const {
+      fontSize = 20,
+      opacity = 0.15,
+      rotate = 0,
+      color = '#000000',
+      repeat = false,
+      gap = 100
+    } = settings || {};
+
+    // 设置水印样式
+    ctx.font = `${fontSize}px Arial`;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = opacity;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (!repeat) {
+      // 单个水印
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((rotate * Math.PI) / 180);
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    } else {
+      // 重复水印
+      const textWidth = ctx.measureText(text).width;
+      const rows = Math.ceil(canvas.height / gap);
+      const cols = Math.ceil(canvas.width / gap);
+      const offsetX = gap / 2;
+      const offsetY = gap / 2;
+
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          ctx.save();
+          ctx.translate(j * gap + offsetX, i * gap + offsetY);
+          ctx.rotate((rotate * Math.PI) / 180);
+          ctx.fillText(text, 0, 0);
+          ctx.restore();
+        }
+      }
+    }
+
+    // 恢复透明度
+    ctx.globalAlpha = 1;
+  };
+
   const handleSubmit = (values: any) => {
     onSubmit({
       ...values,
       features: {
         ...values.features,
         templates,
-        priceAdjustment: values.features?.priceAdjustment || 0
+        priceAdjustment: 0
       }
     });
   };
@@ -321,20 +393,137 @@ const StoreForm: React.FC<{
               </Select>
             </Form.Item>
           </div>
+        </Card>
 
-          <Form.Item
-            name={['features', 'priceAdjustment']}
-            label="价格调整"
-            tooltip="商品价格的上浮比例，0.1 表示上浮 10%"
-          >
-            <InputNumber
-              min={0}
-              max={1}
-              step={0.1}
-              style={{ width: '100%' }}
-              placeholder="请输入价格调整比例"
-            />
-          </Form.Item>
+        {/* 水印设置 */}
+        <Card title="水印设置" className="shadow-sm">
+          <div className="space-y-4">
+            <Form.Item
+              name="watermarkText"
+              label="水印文本"
+              tooltip="导出商品图片时可选择添加此水印"
+            >
+              <Input.TextArea 
+                placeholder="请输入水印文本"
+                onChange={(e) => {
+                  const text = e.target.value;
+                  const settings = form.getFieldValue('watermarkSettings');
+                  updateWatermarkPreview(text, settings);
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name={['watermarkSettings', 'fontSize']}
+              label="字体大小"
+              initialValue={20}
+            >
+              <InputNumber
+                min={12}
+                max={72}
+                onChange={() => {
+                  const text = form.getFieldValue('watermarkText');
+                  const settings = form.getFieldValue('watermarkSettings');
+                  updateWatermarkPreview(text, settings);
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name={['watermarkSettings', 'opacity']}
+              label="透明度"
+              initialValue={0.15}
+            >
+              <Slider
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={() => {
+                  const text = form.getFieldValue('watermarkText');
+                  const settings = form.getFieldValue('watermarkSettings');
+                  updateWatermarkPreview(text, settings);
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name={['watermarkSettings', 'rotate']}
+              label="旋转角度"
+              initialValue={0}
+            >
+              <Slider
+                min={-180}
+                max={180}
+                onChange={() => {
+                  const text = form.getFieldValue('watermarkText');
+                  const settings = form.getFieldValue('watermarkSettings');
+                  updateWatermarkPreview(text, settings);
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name={['watermarkSettings', 'color']}
+              label="水印颜色"
+              initialValue="#000000"
+            >
+              <Input
+                type="color"
+                style={{ width: 60 }}
+                onChange={(e) => {
+                  const text = form.getFieldValue('watermarkText');
+                  const settings = form.getFieldValue('watermarkSettings');
+                  updateWatermarkPreview(text, settings);
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name={['watermarkSettings', 'repeat']}
+              label="重复水印"
+              valuePropName="checked"
+              initialValue={false}
+            >
+              <Switch
+                onChange={() => {
+                  const text = form.getFieldValue('watermarkText');
+                  const settings = form.getFieldValue('watermarkSettings');
+                  updateWatermarkPreview(text, settings);
+                }}
+              />
+            </Form.Item>
+
+            <Form.Item
+              name={['watermarkSettings', 'gap']}
+              label="重复间距"
+              initialValue={100}
+            >
+              <InputNumber
+                min={50}
+                max={200}
+                disabled={!form.getFieldValue(['watermarkSettings', 'repeat'])}
+                onChange={() => {
+                  const text = form.getFieldValue('watermarkText');
+                  const settings = form.getFieldValue('watermarkSettings');
+                  updateWatermarkPreview(text, settings);
+                }}
+              />
+            </Form.Item>
+
+            <div style={{ marginBottom: 16 }}>
+              <div>水印预览：</div>
+              <canvas
+                id="watermarkPreview"
+                width="400"
+                height="300"
+                style={{
+                  border: '1px solid #d9d9d9',
+                  borderRadius: 2,
+                  background: '#f0f0f0'
+                }}
+              />
+            </div>
+          </div>
         </Card>
 
         {/* 商品模板 */}
@@ -467,8 +656,8 @@ const Settings: React.FC = () => {
       storeForm.setFieldsValue({
         name: store.name,
         platform: store.platform,
+        watermarkText: store.watermarkText,
         features: {
-          priceAdjustment: store.features.priceAdjustment,
           templates: store.features.templates || []
         }
       });
@@ -497,8 +686,8 @@ const Settings: React.FC = () => {
         id: currentStore?.id || uuidv4(),
         name: values.name,
         platform: values.platform,
+        watermarkText: values.watermarkText,
         features: {
-          priceAdjustment: values.features?.priceAdjustment || 0,
           templates: values.features?.templates || []
         }
       };
@@ -530,12 +719,6 @@ const Settings: React.FC = () => {
       title: '平台',
       dataIndex: 'platform',
       key: 'platform',
-    },
-    {
-      title: '价格系数',
-      dataIndex: ['features', 'priceAdjustment'],
-      key: 'priceAdjustment',
-      render: (value: number) => `${(value * 100).toFixed(0)}%`,
     },
     {
       title: '操作',
@@ -632,7 +815,7 @@ const Settings: React.FC = () => {
       groupForm.resetFields();
       setCurrentGroup(undefined);
     } catch (error) {
-      // 表单验证���误
+      // 表单验证错误
     }
   };
 
@@ -885,6 +1068,7 @@ const Settings: React.FC = () => {
           storeForm.resetFields();
           setCurrentStore(undefined);
         }}
+        width={1200}
       >
         <StoreForm
           form={storeForm}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown, Progress, Checkbox } from 'antd';
-import { EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons';
+import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown, Progress, Checkbox, Alert } from 'antd';
+import { EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import EditProductForm from './EditProductForm';
 import type { Product, ProductSelection, ProductSourceStatus, ProductStatus, ProductCategory } from '../../types/product';
 import useProductStore from '../../store/productStore';
@@ -9,6 +9,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { deliveryMethods, deliveryMethodMap } from '../../constants';
+import JSZip from 'jszip';
 
 const { Search } = Input;
 const { RangePicker } = DatePicker;
@@ -52,12 +53,14 @@ const ProductManagement: React.FC = () => {
   const [selectedRows, setSelectedRows] = useState<Product[]>([]);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [updateStatusAfterExport, setUpdateStatusAfterExport] = useState(false);
+  const [addWatermark, setAddWatermark] = useState(false);
+  const [exporting, setExporting] = useState(false);
   
   // 使用 store
   const { products, updateProduct, removeProduct, updateDeliveryMethods } = useProductStore();
   const { productSettings, storeAccounts } = useSettingsStore();
 
-  // 更新发货方式格式
+  // 更新发货���式格式
   useEffect(() => {
     updateDeliveryMethods();
   }, []);
@@ -91,12 +94,12 @@ const ProductManagement: React.FC = () => {
       filteredData = filteredData.filter(item => {
         // 如果是多规格商品
         if (item.hasSpecs && Array.isArray(item.specs) && item.specs.length > 0) {
-          // 检查每个规格的发货方式
+          // 检查每���规格的发货方式
           const hasMatchingSpec = item.specs.some(spec => {
             // 确保规格对象存在且有发货方式
             if (!spec || typeof spec !== 'object') return false;
             
-            // 检查发货方式是否匹配（支持中文和英文值）
+            // 检查发货方式是否匹配（支持��文和英文值）
             const matches = spec.deliveryMethod === deliveryMethodFilter || 
                           spec.deliveryMethod === deliveryMethodMap[deliveryMethodFilter] ||
                           Object.entries(deliveryMethodMap).find(([key, value]) => value === spec.deliveryMethod)?.[0] === deliveryMethodFilter;
@@ -324,49 +327,92 @@ const ProductManagement: React.FC = () => {
   };
 
   // 处理图片保存
-  const saveImage = async (imageUrl: string, folderHandle: FileSystemDirectoryHandle, fileName: string) => {
+  const saveImage = async (url: string, filename: string) => {
     try {
-      console.log(`开始保存图片: ${fileName}, URL: ${imageUrl}`);
-      let blob: Blob;
-      
-      // 检查是否是 base64 图片
-      if (imageUrl.startsWith('data:image')) {
-        console.log(`${fileName} 是 base64 图片`);
-        // 将 base64 转换为 blob
-        const response = await fetch(imageUrl);
-        blob = await response.blob();
-      } else {
-        console.log(`${fileName} 是 URL 图片`);
-        // 普通 URL 图片
-        try {
-          const response = await fetch(imageUrl, {
-            mode: 'cors',
-            headers: {
-              'Access-Control-Allow-Origin': '*'
-            }
-          });
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-          blob = await response.blob();
-          console.log(`${fileName} 获取成功，大小: ${blob.size} 字节`);
-        } catch (error) {
-          console.error(`获取图片失败: ${imageUrl}`, error);
-          message.error(`获取图片失败: ${fileName}`);
-          return;
-        }
+      const response = await fetch(url);
+      const blob = await response.blob();
+
+      // 如果不需要添加水印，直接保存
+      if (!addWatermark || !storeAccount?.watermarkText) {
+        saveAs(blob, filename);
+        return;
       }
 
-      // 保存图片文件
-      const imageFileHandle = await folderHandle.getFileHandle(fileName, { create: true });
-      const imageWritable = await imageFileHandle.createWritable();
-      await imageWritable.write(blob);
-      await imageWritable.close();
+      // 创建临时图片对象
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = URL.createObjectURL(blob);
 
-      console.log(`图片保存成功: ${fileName}`);
+      img.onload = () => {
+        // 创建canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // 绘制原图
+        ctx.drawImage(img, 0, 0);
+
+        // 获取水印设置
+        const {
+          fontSize = 20,
+          opacity = 0.15,
+          rotate = 0,
+          color = '#000000',
+          repeat = false,
+          gap = 100
+        } = storeAccount.watermarkSettings || {};
+
+        // 设置水印样式
+        ctx.font = `${fontSize * (img.width / 800)}px Arial`;
+        ctx.fillStyle = color;
+        ctx.globalAlpha = opacity;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        if (!repeat) {
+          // 单个水印
+          ctx.save();
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((rotate * Math.PI) / 180);
+          ctx.fillText(storeAccount.watermarkText, 0, 0);
+          ctx.restore();
+        } else {
+          // 重复水印
+          const scaledGap = gap * (img.width / 800);
+          const rows = Math.ceil(canvas.height / scaledGap);
+          const cols = Math.ceil(canvas.width / scaledGap);
+          const offsetX = scaledGap / 2;
+          const offsetY = scaledGap / 2;
+
+          for (let i = 0; i < rows; i++) {
+            for (let j = 0; j < cols; j++) {
+              ctx.save();
+              ctx.translate(j * scaledGap + offsetX, i * scaledGap + offsetY);
+              ctx.rotate((rotate * Math.PI) / 180);
+              ctx.fillText(storeAccount.watermarkText, 0, 0);
+              ctx.restore();
+            }
+          }
+        }
+
+        // 恢复透明度
+        ctx.globalAlpha = 1;
+
+        // 转换为blob并保存
+        canvas.toBlob((blob) => {
+          if (blob) {
+            saveAs(blob, filename);
+          }
+        });
+
+        // 释放临时URL
+        URL.revokeObjectURL(img.src);
+      };
     } catch (error) {
-      console.error(`保存图片失败: ${fileName}`, error);
-      message.error(`保存图片失败: ${fileName}`);
+      console.error('保存图片失败:', error);
+      message.error('保存图片失败');
     }
   };
 
@@ -384,6 +430,7 @@ const ProductManagement: React.FC = () => {
         try {
           const store = storeAccounts.find(store => store.id === product.storeId);
           const storeName = store?.name || '未知店铺';
+          const watermarkText = addWatermark ? store?.watermarkText : undefined;
           
           // 直接使用原始名称，不进行编码
           const folderName = `${product.name}【${storeName}】`;
@@ -398,7 +445,7 @@ const ProductManagement: React.FC = () => {
             '状态.txt': product.status === 'draft' ? '草稿' : 
                       product.status === 'published' ? '已发布' : 
                       product.status === 'pending' ? '待发布' :
-                      product.status === 'failed' ? '发布失败' : '已下架',
+                      product.status === 'failed' ? '发布��败' : '已下架',
             '商品标题.txt': product.distributedTitle || '',
             '商品描述.txt': product.distributedContent || '',
             '发布店铺.txt': `店铺名称：${storeName}\n平台：${store?.platform || '未知平台'}`
@@ -422,14 +469,14 @@ const ProductManagement: React.FC = () => {
           const imagesFolderHandle = await folderHandle.getDirectoryHandle('图片', { create: true });
 
           if (product.coverImage) {
-            await saveImage(product.coverImage, imagesFolderHandle, '封面图片.jpg');
+            await saveImage(product.coverImage, '封面图片.jpg');
           }
 
           if (product.commonImages && product.commonImages.length > 0) {
             for (let i = 0; i < product.commonImages.length; i++) {
               const image = product.commonImages[i];
               if (image.url) {
-                await saveImage(image.url, imagesFolderHandle, `公共图片_${i + 1}.jpg`);
+                await saveImage(image.url, `公共图片_${i + 1}.jpg`);
               }
             }
           }
@@ -458,7 +505,7 @@ const ProductManagement: React.FC = () => {
       } else {
         message.error('导出失败');
       }
-      throw error; // 重新抛出错误以便上层函数处理
+      throw error;
     }
   };
 
@@ -571,7 +618,7 @@ const ProductManagement: React.FC = () => {
     let total = 0;
     let completed = 0;
 
-    // 基础信息检查
+    // 基���信息检查
     if (record.name) completed++;
     if (record.category) completed++;
     if (typeof record.price === 'number') completed++;
@@ -619,6 +666,150 @@ const ProductManagement: React.FC = () => {
     if (!record.distributedContent) incomplete.push('商品文案');
 
     return incomplete;
+  };
+
+  const handleExport = async (product: Product) => {
+    try {
+      setExporting(true);
+      const storeName = storeAccount?.name || '未知店铺';
+      const folderName = `${product.name}【${storeName}】`;
+      const zip = new JSZip();
+
+      // 创建文本文件
+      zip.file('商品标题.txt', product.distributedTitle || '');
+      zip.file('商品描述.txt', product.description || '');
+      zip.file('状态.txt', 
+        product.status === 'draft' ? '草稿' : 
+        product.status === 'published' ? '已发布' : 
+        product.status === 'pending' ? '待发布' :
+        product.status === 'failed' ? '发布失败' : '已下架'
+      );
+
+      // 保存图片
+      const saveImageToZip = async (url: string, filename: string) => {
+        try {
+          const response = await fetch(url);
+          const blob = await response.blob();
+
+          // 如果不需要添加水印，直接保存
+          if (!addWatermark || !storeAccount?.watermarkText) {
+            zip.file(filename, blob);
+            return;
+          }
+
+          // 创建临时图片对象
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = URL.createObjectURL(blob);
+
+          await new Promise((resolve, reject) => {
+            img.onload = () => {
+              // 创建canvas
+              const canvas = document.createElement('canvas');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                reject(new Error('Failed to get canvas context'));
+                return;
+              }
+
+              // 绘制原图
+              ctx.drawImage(img, 0, 0);
+
+              // 获取水印设置
+              const {
+                fontSize = 20,
+                opacity = 0.15,
+                rotate = 0,
+                color = '#000000',
+                repeat = false,
+                gap = 100
+              } = storeAccount.watermarkSettings || {};
+
+              // 设置水印样式
+              ctx.font = `${fontSize * (img.width / 800)}px Arial`;
+              ctx.fillStyle = color;
+              ctx.globalAlpha = opacity;
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+
+              if (!repeat) {
+                // 单个水印
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate((rotate * Math.PI) / 180);
+                ctx.fillText(storeAccount.watermarkText, 0, 0);
+                ctx.restore();
+              } else {
+                // 重复水印
+                const scaledGap = gap * (img.width / 800);
+                const rows = Math.ceil(canvas.height / scaledGap);
+                const cols = Math.ceil(canvas.width / scaledGap);
+                const offsetX = scaledGap / 2;
+                const offsetY = scaledGap / 2;
+
+                for (let i = 0; i < rows; i++) {
+                  for (let j = 0; j < cols; j++) {
+                    ctx.save();
+                    ctx.translate(j * scaledGap + offsetX, i * scaledGap + offsetY);
+                    ctx.rotate((rotate * Math.PI) / 180);
+                    ctx.fillText(storeAccount.watermarkText, 0, 0);
+                    ctx.restore();
+                  }
+                }
+              }
+
+              // 恢复透明度
+              ctx.globalAlpha = 1;
+
+              // 转换为blob并保存
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  zip.file(filename, blob);
+                  resolve(true);
+                } else {
+                  reject(new Error('Failed to create blob'));
+                }
+              });
+
+              // 释放临时URL
+              URL.revokeObjectURL(img.src);
+            };
+            img.onerror = reject;
+          });
+        } catch (error) {
+          console.error('保存图片失败:', error);
+          message.error('保存图片失败');
+        }
+      };
+
+      // 保存封面图片
+      if (product.coverImage) {
+        await saveImageToZip(product.coverImage, '封面图片.jpg');
+      }
+
+      // 保存公共图片
+      if (product.commonImages && product.commonImages.length > 0) {
+        for (let i = 0; i < product.commonImages.length; i++) {
+          const image = product.commonImages[i];
+          if (image.url) {
+            await saveImageToZip(image.url, `公共图片_${i + 1}.jpg`);
+          }
+        }
+      }
+
+      // 生成并下载zip文件
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `${folderName}.zip`);
+      message.success('导出成功');
+    } catch (error) {
+      console.error('导出失败:', error);
+      message.error('导出失败');
+    } finally {
+      setExporting(false);
+      setExportModalVisible(false);
+    }
   };
 
   const columns: ColumnsType<Product> = [
@@ -952,21 +1143,51 @@ const ProductManagement: React.FC = () => {
       <Modal
         title="导出商品"
         open={exportModalVisible}
-        onOk={handleExportConfirm}
-        onCancel={handleExportCancel}
-        okText="确认导出"
-        cancelText="取消"
+        onOk={() => {
+          if (selectedProduct) {
+            handleExport(selectedProduct);
+          }
+        }}
+        onCancel={() => setExportModalVisible(false)}
+        confirmLoading={exporting}
       >
-        <div className="py-4">
-          <Checkbox
-            checked={updateStatusAfterExport}
-            onChange={(e) => setUpdateStatusAfterExport(e.target.checked)}
-          >
-            导出后将选中商品状态更新为待发布
-          </Checkbox>
-          <div className="mt-2 text-gray-500 text-sm">
-            已选择 {selectedRowKeys.length} 个商品
+        <div className="space-y-4">
+          <div>
+            <div className="mb-2">导出选项：</div>
+            <div className="space-y-2">
+              <Checkbox
+                checked={updateStatusAfterExport}
+                onChange={(e) => setUpdateStatusAfterExport(e.target.checked)}
+              >
+                导出后将商品状态更新为"已发布"
+              </Checkbox>
+              <div>
+                <Checkbox
+                  checked={addWatermark}
+                  onChange={(e) => setAddWatermark(e.target.checked)}
+                  disabled={!storeAccount?.watermarkText}
+                >
+                  为图片添加水印
+                </Checkbox>
+                {addWatermark && storeAccount?.watermarkText && (
+                  <div className="ml-6 mt-2 text-gray-500">
+                    水印文本：{storeAccount.watermarkText}
+                  </div>
+                )}
+                {!storeAccount?.watermarkText && (
+                  <div className="ml-6 mt-2 text-gray-400">
+                    <InfoCircleOutlined className="mr-1" />
+                    请先在店铺设置中设置水印文本
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+          <Alert
+            type="info"
+            showIcon
+            message="导出内容包括：商品标题、商品描述、状态、封面图片和公共图片"
+          />
         </div>
       </Modal>
     </div>
