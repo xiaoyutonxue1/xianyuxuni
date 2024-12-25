@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown, Progress, Checkbox } from 'antd';
-import { PlusOutlined, EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons';
+import { EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons';
 import EditProductForm from './EditProductForm';
 import type { Product, ProductSelection, ProductSourceStatus, ProductStatus, ProductCategory } from '../../types/product';
 import useProductStore from '../../store/productStore';
@@ -39,7 +39,7 @@ const convertSelectionToProduct = (selection: any, originalProduct: Product): Pr
 };
 
 const ProductManagement: React.FC = () => {
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [searchText, setSearchText] = useState('');
@@ -54,7 +54,7 @@ const ProductManagement: React.FC = () => {
   const [updateStatusAfterExport, setUpdateStatusAfterExport] = useState(false);
   
   // 使用 store
-  const { products, updateProduct, addProducts, removeProduct, updateDeliveryMethods } = useProductStore();
+  const { products, updateProduct, removeProduct, updateDeliveryMethods } = useProductStore();
   const { productSettings, storeAccounts } = useSettingsStore();
 
   // 更新发货方式格式
@@ -267,37 +267,12 @@ const ProductManagement: React.FC = () => {
     });
   };
 
-  // 处理新增商品
-  const handleAdd = () => {
-    const newProduct: Product = {
-      id: `new-${Date.now()}`,
-      name: '新商品',
-      category: '电子书' as ProductCategory,
-      description: '',
-      price: 0,
-      stock: 0,
-      createdAt: new Date().toISOString(),
-      source: 'manual',
-      hasSpecs: false,
-      selectionId: `new-${Date.now()}`,
-      storeId: '1',
-      templateId: '1',
-      status: 'draft',
-      distributedAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
-      distributedTitle: '新商品',
-      distributedContent: ''
-    };
-    setSelectedProduct(newProduct);
-    setIsEditModalVisible(true);
-  };
-
   // 处理多选
   const rowSelection = {
     selectedRowKeys,
-    onChange: (selectedKeys: React.Key[], selectedItems: Product[]) => {
+    onChange: (selectedKeys: React.Key[], selectedRows: Product[]) => {
       setSelectedRowKeys(selectedKeys);
-      setSelectedRows(selectedItems);
+      setSelectedRows(selectedRows);
     }
   };
 
@@ -338,7 +313,7 @@ const ProductManagement: React.FC = () => {
           selectedRows.forEach(product => {
             removeProduct(product.id);
           });
-          message.success('批��删除成功');
+          message.success('批量删除成功');
           setSelectedRowKeys([]);
           setSelectedRows([]);
         } catch (error) {
@@ -414,7 +389,7 @@ const ProductManagement: React.FC = () => {
           const folderName = encodeURIComponent(`${product.name}【${storeName}】`).replace(/%/g, '_');
           const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
 
-          // 创建文本文件时使用 TextEncoder 处理中文
+          // 创建文本文��时使用 TextEncoder 处理中文
           const files: Record<string, string> = {
             '商品名称.txt': product.name || '',
             '分类.txt': product.category || '',
@@ -473,7 +448,7 @@ const ProductManagement: React.FC = () => {
       } else {
         message.warning(
           `部分商品导出成功（${successCount}/${selectedRows.length}）\n` +
-          `��败商品：${failedProducts.join('、')}`
+          `失败商品：${failedProducts.join('、')}`
         );
       }
     } catch (error) {
@@ -516,7 +491,7 @@ const ProductManagement: React.FC = () => {
       let successCount = 0;
       let failedProducts: string[] = [];
 
-      // 逐个更新商品状态
+      // 逐个更新���品状态
       for (const product of selectedRows) {
         try {
           const updatedProduct = {
@@ -882,7 +857,7 @@ const ProductManagement: React.FC = () => {
               ]}
             />
             <Select
-              placeholder="发货方式"
+              placeholder="���货方式"
               style={{ width: 160 }}
               value={deliveryMethodFilter}
               onChange={setDeliveryMethodFilter}

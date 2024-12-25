@@ -1,28 +1,35 @@
-import React, { useState } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Modal, Form, Alert, Select, Empty, Dropdown, DatePicker } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Card, Table, Button, Input, Space, message, Tag, Modal, Form, Alert, Select, Dropdown, DatePicker } from 'antd';
 import { ShopOutlined, DownOutlined, DeleteOutlined, ExportOutlined, CalendarOutlined } from '@ant-design/icons';
-import type { ProductSelection } from '../../types/product';
+import type { ProductSelection, ProductCategory, Product } from '../../types/product';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
 import useSelectionStore from '../../store/selectionStore';
 import type { ColumnsType } from 'antd/es/table/interface';
-import dayjs from 'dayjs';
+import type { RangePickerProps } from 'antd/es/date-picker';
+import dayjs, { Dayjs } from 'dayjs';
 import { replaceTemplate } from '../../utils/template';
 
 const { Search } = Input;
+const { RangePicker } = DatePicker;
+
+type RangeValue<T> = [T | null, T | null] | null;
 
 const ProductAllocation: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [isLoading] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedSelections, setSelectedSelections] = useState<ProductSelection[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
-  const [filterValues, setFilterValues] = useState({
+  const [filterValues, setFilterValues] = useState<{
+    storeId: string;
+    dateRange: [Dayjs, Dayjs];
+  }>({
     storeId: '',
     dateRange: [dayjs().startOf('day'), dayjs().endOf('day')]
   });
-  
+
   // 使用 store
   const { storeAccounts, storeGroups } = useSettingsStore();
   const { addProducts, products, removeProduct } = useProductStore();
@@ -37,7 +44,7 @@ const ProductAllocation: React.FC = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await deleteSelections(selectedRowKeys);
+          await deleteSelections(selectedRowKeys.map(key => String(key)));
           message.success('删除成功');
           setSelectedRowKeys([]);
           setSelectedSelections([]);
@@ -57,7 +64,7 @@ const ProductAllocation: React.FC = () => {
         const relatedProducts = products.filter(p => p.selectionId === selection.id);
         const storeNames = relatedProducts.map(p => {
           const store = storeAccounts.find(s => s.id === p.storeId);
-          return store?.name || p.storeId;
+          return store?.name || String(p.storeId);
         });
 
         return {
@@ -113,7 +120,7 @@ const ProductAllocation: React.FC = () => {
       const searchLower = searchText.toLowerCase();
       filteredData = filteredData.filter(selection => 
         selection.name.toLowerCase().includes(searchLower) ||
-        selection.category.toLowerCase().includes(searchLower)
+        (selection.category?.toLowerCase() || '').includes(searchLower)
       );
     }
 
@@ -144,6 +151,34 @@ const ProductAllocation: React.FC = () => {
       .map(p => p.storeId);
   };
 
+  // 创建新商品
+  const createProduct = (selection: ProductSelection, storeId: string, defaultTemplate: any): Product => {
+    if (!selection.category) {
+      throw new Error('商品分类不能为空');
+    }
+
+    return {
+      ...selection,
+      id: `${selection.id}-${storeId}`,
+      selectionId: selection.id,
+      storeId: String(storeId),
+      category: selection.category as ProductCategory,
+      description: selection.description || selection.name,
+      templateId: defaultTemplate.id,
+      status: 'draft',
+      distributedAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+      distributedTitle: replaceTemplate(defaultTemplate.title, {
+        title: selection.name,
+        deliveryMethod: selection.deliveryMethod || ''
+      }),
+      distributedContent: replaceTemplate(defaultTemplate.description, {
+        description: selection.description || selection.name,
+        deliveryMethod: selection.deliveryMethod || ''
+      })
+    } as Product;
+  };
+
   // 处理分配
   const handleDistribute = async () => {
     try {
@@ -155,7 +190,7 @@ const ProductAllocation: React.FC = () => {
         if (value.startsWith('group:')) {
           const groupId = value.replace('group:', '');
           const group = storeGroups.find(g => g.id === groupId);
-          return group ? group.storeIds : [];
+          return group ? group.storeIds.map(String) : [];
         }
         return value;
       }).flat();
@@ -200,25 +235,7 @@ const ProductAllocation: React.FC = () => {
             throw new Error(`店铺 ${storeAccount?.name} 未设置默认模板`);
           }
 
-          // 创建新商��
-          const newProduct = {
-            ...selection,
-            id: `${selection.id}-${storeId}`,
-            selectionId: selection.id,
-            storeId,
-            templateId: defaultTemplate.id,
-            status: 'draft',
-            distributedAt: new Date().toISOString(),
-            lastUpdated: new Date().toISOString(),
-            distributedTitle: replaceTemplate(defaultTemplate.title, {
-              title: selection.name,
-              deliveryMethod: selection.deliveryMethod || ''
-            }),
-            distributedContent: replaceTemplate(defaultTemplate.description, {
-              description: selection.description || '',
-              deliveryMethod: selection.deliveryMethod || ''
-            })
-          };
+          const newProduct = createProduct(selection, storeId, defaultTemplate);
           newProducts.push(newProduct);
         }
 
@@ -342,7 +359,7 @@ const ProductAllocation: React.FC = () => {
         const relatedProducts = products.filter(p => p.selectionId === record.id);
         const storeNames = relatedProducts.map(p => {
           const store = storeAccounts.find(s => s.id === p.storeId);
-          return store?.name || p.storeId;
+          return store?.name || String(p.storeId);
         });
 
         return (
@@ -393,8 +410,8 @@ const ProductAllocation: React.FC = () => {
         <div style={{ padding: 8 }}>
           <DatePicker.RangePicker
             style={{ marginBottom: 8 }}
-            value={selectedKeys[0]}
-            onChange={dates => {
+            value={selectedKeys[0] as RangeValue<Dayjs>}
+            onChange={(dates: RangeValue<Dayjs>) => {
               setSelectedKeys(dates ? [dates] : []);
               confirm();
             }}
@@ -422,12 +439,13 @@ const ProductAllocation: React.FC = () => {
     }
   ];
 
-  // 表��选择配置
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (selectedKeys: string[], selectedRows: ProductSelection[]) => {
-      setSelectedRowKeys(selectedKeys);
-      setSelectedSelections(selectedRows);
+  // 处理日期范围变化
+  const handleDateRangeChange = (dates: RangeValue<Dayjs>) => {
+    if (dates && dates[0] && dates[1]) {
+      setFilterValues(prev => ({
+        ...prev,
+        dateRange: [dates[0], dates[1]]
+      }));
     }
   };
 
@@ -446,6 +464,46 @@ const ProductAllocation: React.FC = () => {
       onClick: handleBatchExport,
     },
   ];
+
+  // 表格选择配置
+  const getTableRowSelection = () => ({
+    selectedRowKeys,
+    onChange: (selectedKeys: React.Key[], selectedRows: ProductSelection[]) => {
+      setSelectedRowKeys(selectedKeys.map(String));
+      setSelectedSelections(selectedRows);
+    },
+    getCheckboxProps: (record: ProductSelection) => ({
+      disabled: record.status === 'inactive'
+    })
+  });
+
+  // 处理表格筛选
+  const handleTableFilter = (state: { storeId: string; dateRange: [Dayjs, Dayjs] }) => {
+    // ... existing code ...
+  };
+
+  // 处理规格检查
+  const checkSpecs = (spec: { deliveryMethod: string; deliveryInfo: string }) => {
+    // ... existing code ...
+  };
+
+  // 处理表格筛选下拉框
+  const filterDropdown = ({ setSelectedKeys, selectedKeys, confirm }: {
+    setSelectedKeys: (keys: React.Key[]) => void;
+    selectedKeys: React.Key[];
+    confirm: () => void;
+  }) => (
+    <div style={{ padding: 8 }}>
+      <DatePicker.RangePicker
+        style={{ marginBottom: 8 }}
+        value={selectedKeys[0] as RangeValue<Dayjs>}
+        onChange={(dates: RangeValue<Dayjs>) => {
+          setSelectedKeys(dates ? [dates] : []);
+          confirm();
+        }}
+      />
+    </div>
+  );
 
   return (
     <div className="p-6 space-y-4">
@@ -480,12 +538,7 @@ const ProductAllocation: React.FC = () => {
           </Space>
           <Space>
             <DatePicker.RangePicker
-              onChange={(dates) => {
-                setFilterValues(prev => ({
-                  ...prev,
-                  dateRange: dates || [dayjs().startOf('day'), dayjs().endOf('day')]
-                }));
-              }}
+              onChange={handleDateRangeChange}
               allowClear
               placeholder={['开始日期', '结束日期']}
               ranges={{
@@ -535,22 +588,13 @@ const ProductAllocation: React.FC = () => {
           columns={columns}
           dataSource={getFilteredSelections()}
           rowKey="id"
-          rowSelection={{
-            selectedRowKeys,
-            onChange: (selectedKeys: string[], selectedRows: ProductSelection[]) => {
-              setSelectedRowKeys(selectedKeys);
-              setSelectedSelections(selectedRows);
-            },
-            getCheckboxProps: (record: ProductSelection) => ({
-              disabled: record.status === 'inactive' // 只禁用已下架的选品
-            })
-          }}
+          rowSelection={getTableRowSelection()}
           pagination={{
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: total => `共 ${total} 条记录`,
           }}
-          loading={loading}
+          loading={isLoading}
         />
       </Card>
 

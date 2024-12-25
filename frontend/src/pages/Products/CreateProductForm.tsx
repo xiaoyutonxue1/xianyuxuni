@@ -62,8 +62,8 @@ const CreateProductForm: React.FC<CreateProductFormProps> = ({
   const [previewImage, setPreviewImage] = useState('');
   const [previewTitle, setPreviewTitle] = useState('');
   const [previewIndex, setPreviewIndex] = useState<number>(0);
-  const [completeness, setCompleteness] = useState(calculateCompleteness(initialValues || {}));
-  const [missingFields, setMissingFields] = useState<string[]>(getMissingFields(initialValues || {}));
+  const [completeness, setCompleteness] = useState(calculateCompleteness(initialValues || {} as ProductSelection));
+  const [missingFields, setMissingFields] = useState<string[]>(getMissingFields(initialValues || {} as ProductSelection));
 
   const { productSettings } = useSettingsStore();
 

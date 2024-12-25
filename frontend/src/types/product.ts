@@ -48,6 +48,7 @@ export interface ProductSelection {
   id: string;
   name: string;
   category?: string;
+  description?: string;
   price?: number;
   stock?: number;
   deliveryMethod?: string;
@@ -55,7 +56,7 @@ export interface ProductSelection {
   commonImages?: Array<{
     id: string;
     url: string;
-    thumbUrl: string;
+    thumbUrl?: string;
     size?: number;
   }>;
   createdAt: string;
@@ -68,6 +69,15 @@ export interface ProductSelection {
     deliveryMethod?: string;
     deliveryInfo?: string;
   }>;
+  status?: ProductSelectionStatus;
+  source_status?: ProductSourceStatus;
+  keywords?: string[];
+  remark?: string;
+  productUrl?: string;
+  coverImage?: string;
+  completeness?: number;
+  distributedAt?: string;
+  lastUpdated?: string;
 }
 
 // 商品状态类型
@@ -117,6 +127,13 @@ export interface Product {
     sort: number;
     createdAt: string;
     size?: number;
+  }>;
+  specs?: Array<{
+    name: string;
+    price?: number;
+    stock?: number;
+    deliveryMethod?: string;
+    deliveryInfo?: string;
   }>;
 }
 

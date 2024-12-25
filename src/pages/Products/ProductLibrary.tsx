@@ -1,16 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, DatePicker } from 'antd';
+import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, Typography, Select, DatePicker } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { 
+  PlusOutlined, 
   DeleteOutlined, 
+  EditOutlined, 
   RobotOutlined,
   DownOutlined,
   StopOutlined,
   ExportOutlined,
+  ExclamationCircleFilled,
+  LoadingOutlined,
   ClockCircleOutlined,
   CheckCircleFilled,
   CloseCircleFilled,
   SyncOutlined,
+  SearchOutlined,
   CalendarOutlined,
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
@@ -18,19 +23,22 @@ import useSettingsStore from '../../store/settingsStore';
 import useSelectionStore from '../../store/selectionStore';
 import CreateProductForm from './CreateProductForm';
 import EditSelectionForm from './EditSelectionForm';
-import { calculateCompleteness, getMissingFields } from '../../utils/productCompleteness';
+import { calculateCompleteness, getMissingFields, getCompletenessStatus } from '../../utils/productCompleteness';
 import type { TableProps } from 'antd';
-import type { ColumnsType } from 'antd/es/table/interface';
+import type { ColumnsType, SortOrder } from 'antd/es/table/interface';
 import type { ProductSelection, ProductSourceStatus, ProductSelectionStatus } from '../../types/product';
 import dayjs, { Dayjs } from 'dayjs';
 import ProductFilter from './components/ProductFilter';
+import type { RangePickerProps } from 'antd/es/date-picker';
+import { deliveryMethods } from '../../utils/constants';
 import { formatDate } from '../../utils/date';
-import { deliveryMethods, deliveryMethodMap } from '../../utils/constants';
 import StatusTag from './components/StatusTag';
 
 const { Search } = Input;
 const { confirm } = Modal;
+const { Text } = Typography;
 const { RangePicker } = DatePicker;
+const { Option } = Select;
 
 type RangeValue<T> = [T | null, T | null] | null;
 
@@ -68,6 +76,15 @@ const statusConfig: Record<ProductSourceStatus, { text: string; color: string; i
   }
 };
 
+// 从 localStorage 获取数据,如果没有则返回空
+const getInitialProducts = () => {
+  const savedProducts = localStorage.getItem('products');
+  if (savedProducts) {
+    return JSON.parse(savedProducts);
+  }
+  return [];
+};
+
 const ProductLibrary: React.FC = () => {
   const navigate = useNavigate();
   const { addSelection, selections, deleteSelections } = useSelectionStore();
@@ -75,40 +92,20 @@ const ProductLibrary: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductSelection | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
   const [filterValues, setFilterValues] = useState<any>({});
+  const productSettings = useSettingsStore(state => state.productSettings);
   const confirmModalRef = useRef<any>(null);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>([null, null]);
-
-  // 检查选品是否缺少某个字段
-  const isMissingField = (selection: ProductSelection, field: string) => {
-    switch(field) {
-      case 'name':
-        return !selection.name;
-      case 'category':
-        return !selection.category;
-      case 'images':
-        return !selection.commonImages || selection.commonImages.length === 0;
-      case 'price':
-        return !selection.price;
-      case 'stock':
-        return !selection.stock;
-      case 'delivery_method':
-        return !selection.deliveryMethod;
-      case 'delivery_info':
-        return !selection.deliveryInfo;
-      default:
-        return false;
-    }
-  };
+  const [filteredData, setFilteredData] = useState<ProductSelection[]>([]);
 
   // 过滤和搜索商品
   const getFilteredProducts = () => {
     let filteredData = [...selections];
     
-    // 按创建时间降序排序
+    // 按创建时间降序排
     filteredData.sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -116,89 +113,23 @@ const ProductLibrary: React.FC = () => {
     // 搜索过滤
     if (searchText) {
       const searchLower = searchText.toLowerCase();
-      filteredData = filteredData.filter(item => {
-        const name = item?.name?.toLowerCase() || '';
-        const category = item?.category?.toLowerCase() || '';
-        return name.includes(searchLower) || category.includes(searchLower);
-      });
+      filteredData = filteredData.filter(item => 
+        item.name.toLowerCase().includes(searchLower) ||
+        (item.category && item.category.toLowerCase().includes(searchLower))
+      );
     }
 
-    // 分类筛选
+    // 应用筛选条件
     if (filterValues.category) {
       filteredData = filteredData.filter(item => 
         item.category === filterValues.category
       );
     }
 
-    // 发货方式筛选
-    if (filterValues.deliveryMethod) {
-      filteredData = filteredData.filter(item => {
-        // 如果是多规格商品
-        if (item?.hasSpecs && item?.specs) {
-          // 只要有一个规格的发货方式匹配即可
-          return item.specs.some((spec: { deliveryMethod: string }) => 
-            spec.deliveryMethod === filterValues.deliveryMethod
-          );
-        }
-        // 单规格商品
-        return item?.deliveryMethod === filterValues.deliveryMethod;
-      });
-    }
-
-    // 完整度筛选
-    if (filterValues.completeness) {
-      switch(filterValues.completeness) {
-        case 'complete':
-          filteredData = filteredData.filter(item => 
-            !isMissingField(item, 'name') &&
-            !isMissingField(item, 'category') &&
-            !isMissingField(item, 'images') &&
-            !isMissingField(item, 'price') &&
-            !isMissingField(item, 'stock') &&
-            !isMissingField(item, 'delivery_method') &&
-            !isMissingField(item, 'delivery_info')
-          );
-          break;
-        case 'incomplete':
-          filteredData = filteredData.filter(item => 
-            isMissingField(item, 'name') ||
-            isMissingField(item, 'category') ||
-            isMissingField(item, 'images') ||
-            isMissingField(item, 'price') ||
-            isMissingField(item, 'stock') ||
-            isMissingField(item, 'delivery_method') ||
-            isMissingField(item, 'delivery_info')
-          );
-          break;
-        case 'missing_name':
-          filteredData = filteredData.filter(item => isMissingField(item, 'name'));
-          break;
-        case 'missing_category':
-          filteredData = filteredData.filter(item => isMissingField(item, 'category'));
-          break;
-        case 'missing_images':
-          filteredData = filteredData.filter(item => isMissingField(item, 'images'));
-          break;
-        case 'missing_price':
-          filteredData = filteredData.filter(item => isMissingField(item, 'price'));
-          break;
-        case 'missing_stock':
-          filteredData = filteredData.filter(item => isMissingField(item, 'stock'));
-          break;
-        case 'missing_delivery_method':
-          filteredData = filteredData.filter(item => isMissingField(item, 'delivery_method'));
-          break;
-        case 'missing_delivery_info':
-          filteredData = filteredData.filter(item => isMissingField(item, 'delivery_info'));
-          break;
-      }
-    }
-
-    // 日期范围筛选
     if (dateRange && dateRange[0] && dateRange[1]) {
       filteredData = filteredData.filter(item => {
-        const createdAt = dayjs(item.createdAt);
-        return createdAt.isAfter(dateRange[0]) && createdAt.isBefore(dateRange[1].endOf('day'));
+        const createdAt = new Date(item.createdAt);
+        return createdAt >= dateRange[0].toDate() && createdAt <= dateRange[1].toDate();
       });
     }
 
@@ -249,18 +180,6 @@ const ProductLibrary: React.FC = () => {
     showDeleteConfirm(selectedRowKeys.map(key => key.toString()));
   };
 
-  // 处理批量下架
-  const handleBatchOffline = () => {
-    const updatedSelections = selections.map(item => 
-      selectedRowKeys.includes(item.id) 
-        ? { ...item, status: 'inactive' as const }
-        : item
-    );
-    // TODO: 实现批量新状态的功能
-    setSelectedRowKeys([]);
-    message.success('批量下架成功');
-  };
-
   // 处理新增
   const handleAdd = () => {
     setIsCreateModalVisible(true);
@@ -275,7 +194,7 @@ const ProductLibrary: React.FC = () => {
   // 处理新增表单提交
   const handleCreateSubmit = async (values: any) => {
     try {
-      // 建立新的选品记录
+      // 建新的选品记录
       const newSelection: Partial<ProductSelection> & { id: string } = {
         id: Date.now().toString(),
         name: values.name,
@@ -290,7 +209,7 @@ const ProductLibrary: React.FC = () => {
         source: values.method,
         source_status: (values.method === 'manual' ? 'manual' : 'crawler_pending') as ProductSourceStatus,
         hasSpecs: values.hasSpecs,
-        specs: values.hasSpecs && values.specs ? values.specs.map((spec: any) => ({
+        specs: values.hasSpecs ? values.specs?.map((spec: any) => ({
           ...spec,
           id: `spec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         })) : undefined,
@@ -300,10 +219,10 @@ const ProductLibrary: React.FC = () => {
         coverImage: values.coverImage,
         commonImages: values.commonImages?.map((img: any) => ({
           id: img.id,
-          url: img.url,
-          thumbUrl: img.thumbUrl,
+          url: img.url,  // 原图 URL
+          thumbUrl: img.thumbUrl,  // 缩略图 URL
           type: 'common' as const,
-          sort: values.commonImages?.indexOf(img) ?? 0,
+          sort: values.commonImages.indexOf(img),
           createdAt: new Date().toISOString(),
           size: img.size
         }))
@@ -468,12 +387,7 @@ const ProductLibrary: React.FC = () => {
   ];
 
   // 处理表格变化
-  const handleTableChange = (
-    pagination: any,
-    filters: any,
-    sorter: any,
-    { field, index }: { field: string; index: number }
-  ) => {
+  const handleTableChange: TableProps<ProductSelection>['onChange'] = (pagination, filters, sorter) => {
     console.log('Table changed:', { pagination, filters, sorter });
   };
 
@@ -482,7 +396,7 @@ const ProductLibrary: React.FC = () => {
     setFilterValues(filterValues);
     let filteredData = [...selections];
 
-    // 用筛选条件
+    // 应用筛选条件
     if (filterValues.category) {
       filteredData = filteredData.filter(item => 
         item.category === filterValues.category
@@ -548,12 +462,6 @@ const ProductLibrary: React.FC = () => {
       danger: true
     },
     {
-      key: 'offline',
-      icon: <StopOutlined />,
-      label: '批量下架',
-      onClick: handleBatchOffline
-    },
-    {
       key: 'export',
       icon: <ExportOutlined />,
       label: '导出数据'
@@ -599,9 +507,9 @@ const ProductLibrary: React.FC = () => {
   };
 
   // 处理日期范围变化
-  const handleDateRangeChange = (dates: RangeValue<Dayjs>) => {
+  const handleDateRangeChange = (dates: RangeValue<Dayjs> | null) => {
     if (dates && dates[0] && dates[1]) {
-      setDateRange([dates[0], dates[1]]);
+      setDateRange(dates);
     }
   };
 
@@ -614,14 +522,6 @@ const ProductLibrary: React.FC = () => {
   // 确认日期筛选
   const handleConfirmDateFilter = () => {
     setDatePickerOpen(false);
-  };
-
-  // 表格选择配置
-  const rowSelection = {
-    selectedRowKeys,
-    onChange: (selectedKeys: React.Key[], selectedRows: ProductSelection[]) => {
-      setSelectedRowKeys(selectedKeys);
-    }
   };
 
   return (
@@ -671,9 +571,7 @@ const ProductLibrary: React.FC = () => {
           loading={loading}
           rowSelection={{
             selectedRowKeys,
-            onChange: (selectedKeys: React.Key[], selectedRows: ProductSelection[]) => {
-              setSelectedRowKeys(selectedKeys);
-            }
+            onChange: (selectedRowKeys) => setSelectedRowKeys(selectedRowKeys),
           }}
           pagination={{
             showSizeChanger: true,
@@ -704,7 +602,7 @@ const ProductLibrary: React.FC = () => {
         centered
       >
         <div className="space-y-4">
-          <DatePicker.RangePicker
+          <RangePicker
             value={dateRange}
             onChange={handleDateRangeChange}
             style={{ width: '100%' }}
