@@ -7,6 +7,7 @@ import ProductLibrary from '../pages/Products/ProductLibrary';
 import ProductAllocation from '../pages/Products/ProductAllocation';
 import ProductManagement from '../pages/Products/ProductManagement';
 import Settings from '../pages/Settings';
+import AdminSettings from '../pages/AdminSettings';
 
 const router = createBrowserRouter([
   {
@@ -44,6 +45,10 @@ const router = createBrowserRouter([
       {
         path: 'settings',
         element: <Settings />,
+      },
+      {
+        path: 'admin-settings',
+        element: <AdminSettings />,
       },
     ],
   },

@@ -8,54 +8,20 @@ import type { FormInstance } from 'antd';
 
 const { TabPane } = Tabs;
 
-// 模拟数据
-const mockStores: StoreAccount[] = [
-  {
-    id: '1',
-    name: '水城有趣的海鲜',
-    platform: '闲鱼',
-    features: {
-      priceAdjustment: 0.1,
-      customFields: {
-        slogan: '新鲜美味，品质保证',
-        servicePromise: '24小时发货，售后无忧',
-      },
-    },
-  },
-  {
-    id: '2',
-    name: '巨全资料库',
-    platform: '闲鱼',
-    features: {
-      priceAdjustment: 0,
-      customFields: {
-        slogan: '资料齐全，价格实惠',
-        servicePromise: '资料保真，售后保障',
-      },
-    },
-  },
-];
-
-const mockGroups: StoreGroup[] = [
-  {
-    id: '1',
-    name: '主力店铺',
-    storeIds: ['1'],
-  },
-  {
-    id: '2',
-    name: '测试店铺',
-    storeIds: ['2'],
-  },
-];
-
-const defaultDeliveryMethods: DeliveryMethodSetting[] = [
-  { id: 'baiduDisk', name: '百度网盘链接', value: 'baiduDisk', isEnabled: true },
-  { id: 'baiduDiskGroup', name: '百度网盘群链接', value: 'baiduDiskGroup', isEnabled: true },
-  { id: 'baiduDiskGroupCode', name: '百度网盘群口令', value: 'baiduDiskGroupCode', isEnabled: true },
-  { id: 'quarkDisk', name: '夸克网盘链接', value: 'quarkDisk', isEnabled: true },
-  { id: 'quarkDiskGroup', name: '夸克网盘群链接', value: 'quarkDiskGroup', isEnabled: true }
-];
+// 定义可用的占位符
+const placeholders = {
+  title: '标题',
+  description: '描述',
+  category: '分类',
+  price: '价格',
+  stock: '库存',
+  deliveryMethod: '发货方式',
+  deliveryInfo: '发货信息',
+  sourceUrl: '来源链接',
+  sourceStatus: '来源状态',
+  sourceType: '来源类型',
+  remark: '备注',
+};
 
 // 商品模板表单
 const TemplateForm: React.FC<{
@@ -70,6 +36,29 @@ const TemplateForm: React.FC<{
       form.setFieldsValue(initialValues);
     }
   }, [initialValues, form]);
+
+  // 处理插入占位符
+  const handleInsertPlaceholder = (field: string, placeholder: string) => {
+    const currentValue = form.getFieldValue(field) || '';
+    const textarea = document.getElementById(`template_${field}`) as HTMLTextAreaElement;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart || 0;
+    const end = textarea.selectionEnd || 0;
+    const newValue = currentValue.substring(0, start) + `{${placeholder}}` + currentValue.substring(end);
+    
+    // 更新表单值
+    form.setFieldsValue({
+      [field]: newValue
+    });
+
+    // 设置新的光标位置
+    setTimeout(() => {
+      const newCursorPos = start + placeholder.length + 2; // 加2是因为{}的长度
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.focus();
+    }, 0);
+  };
 
   return (
     <Form
@@ -86,27 +75,59 @@ const TemplateForm: React.FC<{
         <Input placeholder="请输入模板名称" />
       </Form.Item>
 
+      <div className="mb-4">
+        <div className="flex flex-wrap gap-2 mb-2">
+          <span>可用占位符：</span>
+          {Object.entries(placeholders).map(([key, label]) => (
+            <Tag
+              key={key}
+              color="blue"
+              className="cursor-pointer"
+              onClick={() => handleInsertPlaceholder('title', key)}
+            >
+              {label}
+            </Tag>
+          ))}
+        </div>
+      </div>
+
       <Form.Item
         name="title"
         label="标题模板"
-        tooltip="使用 {title} 表示原始标题"
         rules={[{ required: true, message: '请输入标题模板' }]}
       >
         <Input.TextArea
+          id="template_title"
           placeholder="例如：【正版资源】{title}"
           rows={2}
         />
       </Form.Item>
 
+      <div className="mb-4">
+        <div className="flex flex-wrap gap-2 mb-2">
+          <span>可用占位符：</span>
+          {Object.entries(placeholders).map(([key, label]) => (
+            <Tag
+              key={key}
+              color="blue"
+              className="cursor-pointer"
+              onClick={() => handleInsertPlaceholder('description', key)}
+            >
+              {label}
+            </Tag>
+          ))}
+        </div>
+      </div>
+
       <Form.Item
         name="description"
         label="文案模板"
-        tooltip="使用 {description} 表示原始描述"
         rules={[{ required: true, message: '请输入文案模板' }]}
       >
         <Input.TextArea
-          placeholder="例如：✨ {description}&#10;&#10;💫 发货方式：网盘自动发货&#10;🌟 售后服务：终身有效"
-          rows={4}
+          id="template_description"
+          placeholder="例如：✨ {description}&#10;&#10;💫 发货方式：{deliveryMethod}&#10;🌟 售后服务：终身有效"
+          rows={6}
         />
       </Form.Item>
 
@@ -116,7 +137,9 @@ const TemplateForm: React.FC<{
 
       <Form.Item className="mb-0 text-right">
         <Space>
-          <Button onClick={onCancel}>取消</Button>
+          <Button onClick={onCancel}>
+            取消
+          </Button>
           <Button type="primary" htmlType="submit">
             确定
           </Button>
@@ -415,8 +438,8 @@ const StoreForm: React.FC<{
 
 const Settings: React.FC = () => {
   const { 
-    storeAccounts = mockStores, 
-    storeGroups = mockGroups,
+    storeAccounts,
+    storeGroups,
     productSettings, 
     addStoreAccount, 
     removeStoreAccount,
@@ -609,7 +632,7 @@ const Settings: React.FC = () => {
       groupForm.resetFields();
       setCurrentGroup(undefined);
     } catch (error) {
-      // 表单验证错误
+      // 表单验证���误
     }
   };
 
@@ -743,7 +766,7 @@ const Settings: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex gap-4">
                   <Input
-                    placeholder="请输入分类名称"
+                    placeholder="输入分类名称"
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value)}
                     onKeyPress={handleKeyPress}

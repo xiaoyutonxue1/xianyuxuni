@@ -65,9 +65,15 @@ const MainLayout: React.FC = () => {
       type: 'divider',
     },
     {
+      key: 'admin-settings',
+      icon: <UserOutlined />,
+      label: '个人设置',
+      onClick: () => navigate('/admin-settings'),
+    },
+    {
       key: 'settings',
       icon: <SettingOutlined />,
-      label: '设置',
+      label: '系统设置',
       onClick: () => navigate('/settings'),
     },
     {

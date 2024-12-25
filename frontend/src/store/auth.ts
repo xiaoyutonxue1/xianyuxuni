@@ -6,6 +6,10 @@ interface User {
   username: string;
   email: string;
   role: string;
+  avatar?: string;
+  nickname?: string;
+  phone?: string;
+  signature?: string;
 }
 
 interface AuthState {
@@ -14,6 +18,7 @@ interface AuthState {
   user: User | null;
   login: (token: string, user: User) => void;
   logout: () => void;
+  updateUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,6 +34,12 @@ export const useAuthStore = create<AuthState>()(
       logout: () => {
         localStorage.removeItem('token');
         set({ isAuthenticated: false, token: null, user: null });
+      },
+      updateUser: (user) => {
+        set((state) => ({
+          ...state,
+          user,
+        }));
       },
     }),
     {

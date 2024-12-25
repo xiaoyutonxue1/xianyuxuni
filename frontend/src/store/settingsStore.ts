@@ -134,7 +134,7 @@ const defaultStores: StoreAccount[] = [
           id: '2',
           name: '促销模板',
           title: '【限时特惠】{title}',
-          description: '🔥 限时优惠\n✨ {description}\n\n💫 自动发货\n🌟 永久有效'
+          description: '🔥 限时优惠\n✨ {description}\n\n💫 自动发货\n🌟 永久��效'
         }
       ]
     }
@@ -173,7 +173,7 @@ const defaultCategories = [
 const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      storeAccounts: defaultStores,
+      storeAccounts: [],
       storeGroups: [],
       productSettings: {
         defaultDistributeAccounts: [],
@@ -247,7 +247,6 @@ const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'settings-storage',
-      version: 1,
     }
   )
 );
