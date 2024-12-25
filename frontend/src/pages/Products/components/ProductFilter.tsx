@@ -7,11 +7,17 @@ const { Option } = Select;
 
 // 完整度选项
 const COMPLETENESS_OPTIONS = [
-  { label: '全部完整度', value: 'all' },
-  { label: '100% 完整', value: '100' },
-  { label: '80-99% 较完整', value: '80-99' },
-  { label: '60-79% 部分完整', value: '60-79' },
-  { label: '60% 以下 待完善', value: '0-59' },
+  { label: '全部完整度', value: '' },
+  { label: '完整商品', value: 'complete' },
+  { label: '不完整商品', value: 'incomplete' },
+  { type: 'divider' },
+  { label: '缺少商品名称', value: 'missing_name' },
+  { label: '缺少商品分类', value: 'missing_category' },
+  { label: '缺少公共图片', value: 'missing_images' },
+  { label: '缺少售价', value: 'missing_price' },
+  { label: '缺少库存', value: 'missing_stock' },
+  { label: '缺少发货方式', value: 'missing_delivery_method' },
+  { label: '缺少发货信息', value: 'missing_delivery_info' }
 ];
 
 // 规格类型选项
@@ -30,7 +36,7 @@ const allCategoryOptions = [
 const allDeliveryMethods = [
   { 
     label: '全部发货方式', 
-    value: 'all',
+    value: '',
     pattern: '',
     example: '',
     placeholder: ''
@@ -45,9 +51,9 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
   const handleReset = () => {
     form.setFieldsValue({
       category: 'all',
-      completeness: 'all',
+      completeness: '',
       specType: 'all',
-      deliveryMethod: 'all'
+      deliveryMethod: ''
     });
     onFilter({});
   };
@@ -56,7 +62,7 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
   const handleValuesChange = (changedValues: any, allValues: any) => {
     // 处理全选值
     const processedValues = Object.entries(allValues).reduce((acc: any, [key, value]) => {
-      if (value === 'all') {
+      if (value === 'all' || value === '') {
         return acc;
       }
       acc[key] = value;
@@ -70,9 +76,9 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
   useEffect(() => {
     form.setFieldsValue({
       category: 'all',
-      completeness: 'all',
+      completeness: '',
       specType: 'all',
-      deliveryMethod: 'all'
+      deliveryMethod: ''
     });
   }, [form]);
 
@@ -84,7 +90,7 @@ const ProductFilter: React.FC<ProductFilterProps> = ({ onFilter }) => {
       style={{ marginBottom: 16, padding: 16, background: '#f5f5f5', borderRadius: 4 }}
     >
       {/* 分类筛选 */}
-      <Form.Item name="category" label="商品分类">
+      <Form.Item name="category" label="商品分��">
         <Select
           style={{ width: 160 }}
           placeholder="选择分类"

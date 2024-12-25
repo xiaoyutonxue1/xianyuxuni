@@ -101,11 +101,33 @@ const ProductLibrary: React.FC = () => {
   const [dateRange, setDateRange] = useState<RangeValue<Dayjs>>([null, null]);
   const [filteredData, setFilteredData] = useState<ProductSelection[]>([]);
 
+  // 检查选品是否缺少某个字段
+  const isMissingField = (selection: ProductSelection, field: string) => {
+    switch(field) {
+      case 'name':
+        return !selection.name;
+      case 'category':
+        return !selection.category;
+      case 'images':
+        return !selection.commonImages || selection.commonImages.length === 0;
+      case 'price':
+        return !selection.price;
+      case 'stock':
+        return !selection.stock;
+      case 'delivery_method':
+        return !selection.deliveryMethod;
+      case 'delivery_info':
+        return !selection.deliveryInfo;
+      default:
+        return false;
+    }
+  };
+
   // 过滤和搜索商品
   const getFilteredProducts = () => {
     let filteredData = [...selections];
     
-    // 按创建时间降序排
+    // 按创建时间降序排序
     filteredData.sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
@@ -119,13 +141,76 @@ const ProductLibrary: React.FC = () => {
       );
     }
 
-    // 应用筛选条件
+    // 分类筛选
     if (filterValues.category) {
       filteredData = filteredData.filter(item => 
         item.category === filterValues.category
       );
     }
 
+    // 发货方式筛选
+    if (filterValues.deliveryMethod) {
+      filteredData = filteredData.filter(item => {
+        // 如果是多规格商品
+        if (item.hasSpecs && item.specs) {
+          // 只要有一个规格的发货方式匹配即可
+          return item.specs.some(spec => spec.deliveryMethod === filterValues.deliveryMethod);
+        }
+        // 单规格商品
+        return item.deliveryMethod === filterValues.deliveryMethod;
+      });
+    }
+
+    // 完整度筛选
+    if (filterValues.completeness) {
+      switch(filterValues.completeness) {
+        case 'complete':
+          filteredData = filteredData.filter(item => 
+            !isMissingField(item, 'name') &&
+            !isMissingField(item, 'category') &&
+            !isMissingField(item, 'images') &&
+            !isMissingField(item, 'price') &&
+            !isMissingField(item, 'stock') &&
+            !isMissingField(item, 'delivery_method') &&
+            !isMissingField(item, 'delivery_info')
+          );
+          break;
+        case 'incomplete':
+          filteredData = filteredData.filter(item => 
+            isMissingField(item, 'name') ||
+            isMissingField(item, 'category') ||
+            isMissingField(item, 'images') ||
+            isMissingField(item, 'price') ||
+            isMissingField(item, 'stock') ||
+            isMissingField(item, 'delivery_method') ||
+            isMissingField(item, 'delivery_info')
+          );
+          break;
+        case 'missing_name':
+          filteredData = filteredData.filter(item => isMissingField(item, 'name'));
+          break;
+        case 'missing_category':
+          filteredData = filteredData.filter(item => isMissingField(item, 'category'));
+          break;
+        case 'missing_images':
+          filteredData = filteredData.filter(item => isMissingField(item, 'images'));
+          break;
+        case 'missing_price':
+          filteredData = filteredData.filter(item => isMissingField(item, 'price'));
+          break;
+        case 'missing_stock':
+          filteredData = filteredData.filter(item => isMissingField(item, 'stock'));
+          break;
+        case 'missing_delivery_method':
+          filteredData = filteredData.filter(item => isMissingField(item, 'delivery_method'));
+          break;
+        case 'missing_delivery_info':
+          filteredData = filteredData.filter(item => isMissingField(item, 'delivery_info'));
+          break;
+      }
+    }
+
+    // 日期范围筛选
     if (dateRange && dateRange[0] && dateRange[1]) {
       filteredData = filteredData.filter(item => {
         const createdAt = new Date(item.createdAt);

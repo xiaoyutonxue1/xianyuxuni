@@ -8,6 +8,7 @@ import useSettingsStore from '../../store/settingsStore';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
+import { deliveryMethods, deliveryMethodMap } from '../../constants';
 
 const { Search } = Input;
 const { RangePicker } = DatePicker;
@@ -46,6 +47,7 @@ const ProductManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<ProductStatus | ''>('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [completenessFilter, setCompletenessFilter] = useState<string>('');
+  const [deliveryMethodFilter, setDeliveryMethodFilter] = useState('');
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectedRows, setSelectedRows] = useState<Product[]>([]);
@@ -80,6 +82,52 @@ const ProductManagement: React.FC = () => {
     // 分类筛选
     if (categoryFilter) {
       filteredData = filteredData.filter(item => item.category === categoryFilter);
+    }
+
+    // 发货方式筛选
+    if (deliveryMethodFilter) {
+      console.log('Filtering by delivery method:', deliveryMethodFilter);
+      filteredData = filteredData.filter(item => {
+        // 如果是多规格商品
+        if (item.hasSpecs && Array.isArray(item.specs) && item.specs.length > 0) {
+          // 检查每个规格的发货方式
+          const hasMatchingSpec = item.specs.some(spec => {
+            // 确保规格对象存在且有发货方式
+            if (!spec || typeof spec !== 'object') return false;
+            
+            // 检查发货方式是否匹配（支持中文和英文值）
+            const matches = spec.deliveryMethod === deliveryMethodFilter || 
+                          spec.deliveryMethod === deliveryMethodMap[deliveryMethodFilter] ||
+                          Object.entries(deliveryMethodMap).find(([key, value]) => value === spec.deliveryMethod)?.[0] === deliveryMethodFilter;
+            
+            console.log(`Spec ${spec.name || 'unknown'} delivery method:`, spec.deliveryMethod, 'matches:', matches);
+            return matches;
+          });
+          
+          if (hasMatchingSpec) {
+            console.log('Found matching spec in product:', item.name);
+          }
+          return hasMatchingSpec;
+        }
+        
+        // 单规格商品
+        if (!item.deliveryMethod) {
+          console.log('Product has no delivery method:', item.name);
+          return false;
+        }
+        
+        // 检查发货方式是否匹配（支持中文和英文值）
+        const matches = item.deliveryMethod === deliveryMethodFilter || 
+                       item.deliveryMethod === deliveryMethodMap[deliveryMethodFilter] ||
+                       Object.entries(deliveryMethodMap).find(([key, value]) => value === item.deliveryMethod)?.[0] === deliveryMethodFilter;
+        
+        if (matches) {
+          console.log('Found matching single product:', item.name);
+        }
+        return matches;
+      });
+      
+      console.log('Filtered products count:', filteredData.length);
     }
 
     // 完整度筛选
@@ -293,7 +341,7 @@ const ProductManagement: React.FC = () => {
           setSelectedRowKeys([]);
           setSelectedRows([]);
         } catch (error) {
-          message.error('批量删除失败');
+          message.error('���量删除失败');
         }
       }
     });
@@ -368,7 +416,7 @@ const ProductManagement: React.FC = () => {
           console.log('创建文件夹:', folderName);
           const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
 
-          // 创建并写入各个信息文件
+          // 创建并写入��个信息文件
           const files: Record<string, string> = {
             '商品名称.txt': product.name || '',
             '分类.txt': product.category || '',
@@ -761,6 +809,20 @@ const ProductManagement: React.FC = () => {
                   label: category,
                   value: category,
                 })) || [])
+              ]}
+            />
+            <Select
+              placeholder="发货方式"
+              style={{ width: 160 }}
+              value={deliveryMethodFilter}
+              onChange={setDeliveryMethodFilter}
+              allowClear
+              options={[
+                { label: '全部发货方式', value: '' },
+                ...(deliveryMethods.map(method => ({
+                  label: method.label,
+                  value: method.value,
+                })))
               ]}
             />
             <Select<string>

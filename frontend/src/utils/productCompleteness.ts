@@ -1,111 +1,64 @@
 import type { ProductSelection } from '../types/product';
 
-// 计算商品完整度
-export const calculateCompleteness = (record: any) => {
-  let completedFields = 0;
-  let totalFields = 0;
-
-  // 根据不同模式计算完整度
-  if (record.source === 'crawler') {
-    // 爬虫模式只需要检查必要字段
-    const crawlerFields = ['name', 'productUrl'];
-    totalFields = crawlerFields.length;
-    crawlerFields.forEach(field => {
-      if (record[field]) completedFields++;
-    });
-  } else {
-    // 手动模式需要检查所有字段
-    // 基础信息
-    const baseFields = ['name', 'category'];
-    totalFields += baseFields.length;
-    baseFields.forEach(field => {
-      if (record[field]) completedFields++;
-    });
-
-    // 检查公共图片
-    totalFields += 1;
-    if (record.commonImages && record.commonImages.length > 0) {
-      completedFields++;
-    }
-
-    // 检查销售信息
-    if (record.hasSpecs) {
-      // 多规格模式
-      if (record.specs && record.specs.length > 0) {
-        record.specs.forEach((spec: any) => {
-          const specFields = ['name', 'price', 'stock', 'deliveryMethod', 'deliveryInfo'];
-          totalFields += specFields.length;
-          specFields.forEach(field => {
-            if (spec[field]) completedFields++;
-          });
-        });
-      }
-    } else {
-      // 单规格模式
-      const saleFields = ['price', 'stock', 'deliveryMethod', 'deliveryInfo'];
-      totalFields += saleFields.length;
-      saleFields.forEach(field => {
-        if (field === 'stock' || field === 'price') {
-          // 检查数值类型，包括 0 和默认值
-          if (record[field] !== undefined && record[field] !== null) completedFields++;
-        } else {
-          if (record[field]) completedFields++;
-        }
-      });
-    }
+// 检查选品是否缺少某个字段
+export const isMissingField = (selection: ProductSelection, field: string) => {
+  switch(field) {
+    case 'name':
+      return !selection.name;
+    case 'category':
+      return !selection.category;
+    case 'images':
+      return !selection.commonImages || selection.commonImages.length === 0;
+    case 'price':
+      return !selection.price;
+    case 'stock':
+      return !selection.stock;
+    case 'delivery_method':
+      return !selection.deliveryMethod;
+    case 'delivery_info':
+      return !selection.deliveryInfo;
+    default:
+      return false;
   }
-
-  return Math.round((completedFields / totalFields) * 100);
 };
 
-// 获取未填写的字段
-export const getMissingFields = (record: any) => {
-  const missingFields = [];
+// 获取选品缺少的字段列表
+export const getMissingFields = (selection: ProductSelection): string[] => {
+  const fields = [
+    { key: 'name', label: '商品名称' },
+    { key: 'category', label: '商品分类' },
+    { key: 'images', label: '公共图片' },
+    { key: 'price', label: '售价' },
+    { key: 'stock', label: '库存' },
+    { key: 'delivery_method', label: '发货方式' },
+    { key: 'delivery_info', label: '发货信息' }
+  ];
 
-  if (record.source === 'crawler') {
-    // 爬虫模式
-    if (!record.name) missingFields.push('商品名称');
-    if (!record.productUrl) missingFields.push('商品链接');
-  } else {
-    // 手动模式
-    // 检查基础信息
-    if (!record.name) missingFields.push('商品名称');
-    if (!record.category) missingFields.push('商品分类');
-    
-    // 检查公共图片
-    if (!record.commonImages || record.commonImages.length === 0) {
-      missingFields.push('公共图片');
-    }
+  return fields
+    .filter(field => isMissingField(selection, field.key))
+    .map(field => field.label);
+};
 
-    // 检查销售信息
-    if (record.hasSpecs) {
-      // 多规格模式
-      if (!record.specs || record.specs.length === 0) {
-        missingFields.push('规格信息');
-      } else {
-        record.specs.forEach((spec: any, index: number) => {
-          if (!spec.name) missingFields.push(`规格${index + 1}名称`);
-          if (!spec.price) missingFields.push(`规格${index + 1}价格`);
-          if (!spec.stock) missingFields.push(`规格${index + 1}库存`);
-          if (!spec.deliveryMethod) missingFields.push(`规格${index + 1}发货方式`);
-          if (!spec.deliveryInfo) missingFields.push(`规格${index + 1}发货信息`);
-        });
-      }
-    } else {
-      // 单规格模式
-      if (record.price === undefined || record.price === null) missingFields.push('商品价格');
-      if (record.stock === undefined || record.stock === null) missingFields.push('商品库存');
-      if (!record.deliveryMethod) missingFields.push('发货方式');
-      if (!record.deliveryInfo) missingFields.push('发货信息');
-    }
-  }
+// 计算选品的完整度百分比
+export const calculateCompleteness = (selection: ProductSelection): number => {
+  const fields = [
+    'name',
+    'category',
+    'images',
+    'price',
+    'stock',
+    'delivery_method',
+    'delivery_info'
+  ];
 
-  return missingFields;
+  const filledFields = fields.filter(field => !isMissingField(selection, field));
+  return Math.round((filledFields.length / fields.length) * 100);
 };
 
 // 获取完整度状态
-export const getCompletenessStatus = (percent: number) => {
-  if (percent >= 90) return 'success';
-  if (percent >= 60) return 'normal';
-  return 'exception';
+export const getCompletenessStatus = (selection: ProductSelection): 'success' | 'warning' | 'error' => {
+  const percent = calculateCompleteness(selection);
+  if (percent === 100) return 'success';
+  if (percent >= 60) return 'warning';
+  return 'error';
 }; 
