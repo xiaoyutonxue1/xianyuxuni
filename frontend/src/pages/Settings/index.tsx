@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Tabs, Form, Input, Button, Select, InputNumber, Switch, Space, Tag, message, Modal, Table, Divider, Slider } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import useSettingsStore from '../../store/settingsStore';
@@ -213,6 +213,43 @@ const TemplateList: React.FC<{
   );
 };
 
+// 更新字体选项配置
+const fontOptions = [
+  {
+    label: '非衬线体',
+    options: [
+      { label: '微软雅黑', value: 'Microsoft YaHei' },
+      { label: '思源黑体', value: 'Source Han Sans CN' },
+      { label: '苹方', value: 'PingFang SC' },
+      { label: '阿里巴巴普惠体', value: 'Alibaba PuHuiTi' },
+      { label: '黑体', value: 'SimHei' },
+      { label: 'Helvetica', value: 'Helvetica' },
+      { label: 'Arial', value: 'Arial' }
+    ]
+  },
+  {
+    label: '衬线体',
+    options: [
+      { label: '宋体', value: 'SimSun' },
+      { label: '思源宋体', value: 'Source Han Serif CN' },
+      { label: '方正书宋', value: 'FangSong' },
+      { label: '楷体', value: 'KaiTi' },
+      { label: 'Times New Roman', value: 'Times New Roman' },
+      { label: 'Georgia', value: 'Georgia' }
+    ]
+  },
+  {
+    label: '艺术字体',
+    options: [
+      { label: '华文行楷', value: 'STXingkai' },
+      { label: '华文楷体', value: 'STKaiti' },
+      { label: '华文隶书', value: 'STLiti' },
+      { label: '华文琥珀', value: 'STHupo' },
+      { label: '幼圆', value: 'YouYuan' }
+    ]
+  }
+];
+
 // 店铺表单
 const StoreForm: React.FC<{
   form: FormInstance;
@@ -227,6 +264,9 @@ const StoreForm: React.FC<{
   );
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
+  const [watermarkPosition, setWatermarkPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (form && initialValues) {
@@ -336,16 +376,20 @@ const StoreForm: React.FC<{
         // 绘制图片
         ctx.drawImage(img, x, y, width, height);
 
-        // 绘制水印
-        drawWatermark(ctx, text);
+        // 保存图片区域信息
+        const imageArea = { x, y, width, height };
+
+        // 绘制水印时传入图片区域信息
+        drawWatermark(ctx, imageArea, text);
       };
     } else {
       // 绘制背景
       ctx.fillStyle = '#f8f8f8';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
-      // 绘制水印
-      drawWatermark(ctx, text);
+      // 在没有图片时使用整个canvas作为区域
+      const imageArea = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+      drawWatermark(ctx, imageArea, text);
     }
   };
 
@@ -406,8 +450,13 @@ const StoreForm: React.FC<{
     })));
   };
 
-  // 绘制水印预览
-  const drawWatermark = (ctx: CanvasRenderingContext2D, text?: string) => {
+  // 修改水印绘制函数，避免重复渲染背景
+  const drawWatermark = (
+    ctx: CanvasRenderingContext2D, 
+    imageArea: { x: number; y: number; width: number; height: number }, 
+    text?: string,
+    skipBackground: boolean = false
+  ) => {
     const values = form.getFieldsValue();
     const watermarkText = text ?? values.watermarkText;
     const settings = values.watermarkSettings || {};
@@ -421,57 +470,107 @@ const StoreForm: React.FC<{
     const rotation = (settings.rotation || 0) * Math.PI / 180;
     const mode = settings.mode || 'single';
     const color = settings.color || '#000000';
-    const fontFamily = settings.fontFamily || 'Arial';
+    const fontFamily = settings.fontFamily || 'Microsoft YaHei';
     
+    // 添加字体加载检查
+    document.fonts.load(`${fontSize}px ${fontFamily}`).then(() => {
+      if (!skipBackground) {
+        ctx.save();
+        // 清空画布
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        
+        // 如果有预览图片，重新绘制片
+        if (previewImages.length > 0) {
+          const img = new Image();
+          img.src = previewImages[currentPreviewIndex];
+          img.onload = () => {
+            const scale = Math.min(
+              ctx.canvas.width / img.width,
+              ctx.canvas.height / img.height
+            );
+            const width = img.width * scale;
+            const height = img.height * scale;
+            const x = (ctx.canvas.width - width) / 2;
+            const y = (ctx.canvas.height - height) / 2;
+            ctx.drawImage(img, x, y, width, height);
+            drawWatermarkContent(ctx, imageArea, watermarkText, settings);
+          };
+        } else {
+          ctx.fillStyle = '#f8f8f8';
+          ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+          drawWatermarkContent(ctx, imageArea, watermarkText, settings);
+        }
+        ctx.restore();
+      } else {
+        // 只重绘水印，不重绘背景
+        drawWatermarkContent(ctx, imageArea, watermarkText, settings);
+      }
+    });
+  };
+
+  // 修改drawWatermarkContent函数，优化重绘逻辑
+  const drawWatermarkContent = (
+    ctx: CanvasRenderingContext2D,
+    imageArea: { x: number; y: number; width: number; height: number },
+    watermarkText: string,
+    settings: any
+  ) => {
+    // 每次绘制前清空整个画布
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    // 重新绘制背景图片
+    if (previewImages.length > 0) {
+      const img = new Image();
+      img.src = previewImages[currentPreviewIndex];
+      const scale = Math.min(
+        ctx.canvas.width / img.width,
+        ctx.canvas.height / img.height
+      );
+      const width = img.width * scale;
+      const height = img.height * scale;
+      const x = (ctx.canvas.width - width) / 2;
+      const y = (ctx.canvas.height - height) / 2;
+      ctx.drawImage(img, x, y, width, height);
+    } else {
+      ctx.fillStyle = '#f8f8f8';
+      ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+
     ctx.save();
+    
+    // 设置水印样式
+    const fontSize = settings.fontSize || 20;
+    const opacity = (settings.opacity || 15) / 100;
+    const position = settings.position || 'center';
+    const rotation = (settings.rotation || 0) * Math.PI / 180;
+    const mode = settings.mode || 'single';
+    const color = settings.color || '#000000';
+    const fontFamily = settings.fontFamily || 'Microsoft YaHei';
+
     ctx.font = `${fontSize}px ${fontFamily}`;
     ctx.fillStyle = color;
     ctx.globalAlpha = opacity;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    
+    // 限制绘制区域在图片范围内
+    ctx.beginPath();
+    ctx.rect(imageArea.x, imageArea.y, imageArea.width, imageArea.height);
+    ctx.clip();
     
     if (mode === 'single') {
-      // 计算位置
-      let x = ctx.canvas.width / 2;
-      let y = ctx.canvas.height / 2;
+      // 使用拖拽位置或计算预设位置
+      let { x, y } = watermarkPosition || calculateWatermarkPosition(position, imageArea);
       
-      switch (position) {
-        case 'top-left':
-          x = fontSize * 2;
-          y = fontSize;
-          break;
-        case 'top-right':
-          x = ctx.canvas.width - fontSize * 2;
-          y = fontSize;
-          break;
-        case 'bottom-left':
-          x = fontSize * 2;
-          y = ctx.canvas.height - fontSize;
-          break;
-        case 'bottom-right':
-          x = ctx.canvas.width - fontSize * 2;
-          y = ctx.canvas.height - fontSize;
-          break;
-      }
+      // 确保水印在图片区域内
+      x = Math.max(imageArea.x + fontSize, Math.min(x, imageArea.x + imageArea.width - fontSize));
+      y = Math.max(imageArea.y + fontSize, Math.min(y, imageArea.y + imageArea.height - fontSize));
       
-      // 应用旋转
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.translate(x, y);
       ctx.rotate(rotation);
       ctx.fillText(watermarkText, 0, 0);
     } else {
-      // 平铺模式
-      const textWidth = ctx.measureText(watermarkText).width;
-      const gap = textWidth + fontSize;
-      
-      for (let y = fontSize; y < ctx.canvas.height; y += gap) {
-        for (let x = fontSize * 2; x < ctx.canvas.width; x += gap) {
-          ctx.save();
-          ctx.translate(x, y);
-          ctx.rotate(rotation);
-          ctx.fillText(watermarkText, 0, 0);
-          ctx.restore();
-        }
-      }
+      // ... existing tile mode code ...
     }
     
     ctx.restore();
@@ -603,6 +702,165 @@ const StoreForm: React.FC<{
       color,
       opacity
     };
+  };
+
+  // 修改handleDragMove函数，优化拖动逻辑
+  const handleDragMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDragging || !canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const imageArea = getImageArea();
+    if (!imageArea) return;
+    
+    // 更新水印位置
+    setWatermarkPosition({ x, y });
+    
+    // 直接调用drawWatermarkContent重绘整个画布
+    const values = form.getFieldsValue();
+    const watermarkText = values.watermarkText;
+    const settings = values.watermarkSettings || {};
+    
+    if (watermarkText) {
+      drawWatermarkContent(ctx, imageArea, watermarkText, settings);
+    }
+  };
+
+  // 修改handleDragEnd函数，保持拖动位置
+  const handleDragEnd = () => {
+    if (!isDragging || !watermarkPosition || !canvasRef.current) return;
+    
+    setIsDragging(false);
+    
+    // 根据最终位置更新水印位置设置
+    const imageArea = getImageArea();
+    if (!imageArea) return;
+    
+    const { x, y } = watermarkPosition;
+    const position = determinePosition(x, y, imageArea);
+    form.setFieldValue(['watermarkSettings', 'position'], position);
+    
+    // 保持当前拖拽位置，不重置watermarkPosition
+    const ctx = canvasRef.current.getContext('2d');
+    if (ctx) {
+      const values = form.getFieldsValue();
+      const watermarkText = values.watermarkText;
+      const settings = values.watermarkSettings || {};
+      if (watermarkText) {
+        drawWatermarkContent(ctx, imageArea, watermarkText, settings);
+      }
+    }
+  };
+
+  // 获取图片区域信息
+  const getImageArea = () => {
+    if (!canvasRef.current) return null;
+    
+    const canvas = canvasRef.current;
+    if (previewImages.length > 0) {
+      const img = new Image();
+      img.src = previewImages[currentPreviewIndex];
+      const scale = Math.min(
+        canvas.width / img.width,
+        canvas.height / img.height
+      );
+      const width = img.width * scale;
+      const height = img.height * scale;
+      const x = (canvas.width - width) / 2;
+      const y = (canvas.height - height) / 2;
+      return { x, y, width, height };
+    }
+    return {
+      x: 0,
+      y: 0,
+      width: canvas.width,
+      height: canvas.height
+    };
+  };
+
+  // 根据拖拽位置确定最近的预设位置
+  const determinePosition = (x: number, y: number, imageArea: { x: number; y: number; width: number; height: number }) => {
+    const relativeX = (x - imageArea.x) / imageArea.width;
+    const relativeY = (y - imageArea.y) / imageArea.height;
+    
+    if (relativeX < 0.33) {
+      return relativeY < 0.33 ? 'top-left' : relativeY > 0.67 ? 'bottom-left' : 'center';
+    } else if (relativeX > 0.67) {
+      return relativeY < 0.33 ? 'top-right' : relativeY > 0.67 ? 'bottom-right' : 'center';
+    }
+    return 'center';
+  };
+
+  // 计算水印实际位置
+  const calculateWatermarkPosition = (position: string, imageArea: { x: number; y: number; width: number; height: number }) => {
+    const values = form.getFieldsValue();
+    const settings = values.watermarkSettings || {};
+    const fontSize = settings.fontSize || 20;
+    const padding = Math.min(fontSize, imageArea.width * 0.1);
+    
+    switch (position) {
+      case 'top-left':
+        return {
+          x: imageArea.x + padding,
+          y: imageArea.y + padding + fontSize/2
+        };
+      case 'top-right':
+        return {
+          x: imageArea.x + imageArea.width - padding,
+          y: imageArea.y + padding + fontSize/2
+        };
+      case 'bottom-left':
+        return {
+          x: imageArea.x + padding,
+          y: imageArea.y + imageArea.height - padding - fontSize/2
+        };
+      case 'bottom-right':
+        return {
+          x: imageArea.x + imageArea.width - padding,
+          y: imageArea.y + imageArea.height - padding - fontSize/2
+        };
+      default:
+        return {
+          x: imageArea.x + imageArea.width / 2,
+          y: imageArea.y + imageArea.height / 2
+        };
+    }
+  };
+
+  // 添加handleDragStart函数
+  const handleDragStart = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    // 检查是否点击在水印文字区域
+    const values = form.getFieldsValue();
+    const settings = values.watermarkSettings || {};
+    const position = settings.position || 'center';
+    const imageArea = getImageArea();
+    if (!imageArea) return;
+    
+    // 获取当前水印位置
+    const currentPos = watermarkPosition || calculateWatermarkPosition(position, imageArea);
+    const clickRadius = Math.max(50, settings.fontSize || 20); // 点击判定范围随字体大小变化
+    
+    // 检查点击是否在水印区域内
+    if (
+      Math.abs(x - currentPos.x) < clickRadius &&
+      Math.abs(y - currentPos.y) < clickRadius
+    ) {
+      setIsDragging(true);
+      setWatermarkPosition({ x, y });
+    }
   };
 
   return (
@@ -747,18 +1005,17 @@ const StoreForm: React.FC<{
 
               <Form.Item
                 name={['watermarkSettings', 'fontFamily']}
-                label="字体"
-                initialValue="Arial"
-                className="mb-0"
+                label="水印字体"
+                tooltip="选择水印文字的字体,不同字体会呈现不同的视觉效果"
               >
-                <Select onChange={() => updateWatermarkPreview()}>
-                  <Select.Option value="Arial">Arial</Select.Option>
-                  <Select.Option value="SimSun">宋体</Select.Option>
-                  <Select.Option value="Microsoft YaHei">微软雅黑</Select.Option>
-                  <Select.Option value="SimHei">黑体</Select.Option>
-                  <Select.Option value="KaiTi">楷体</Select.Option>
-                  <Select.Option value="FangSong">仿宋</Select.Option>
-                </Select>
+                <Select
+                  placeholder="请选择字体"
+                  options={fontOptions}
+                  showSearch
+                  optionFilterProp="label"
+                  style={{ width: '100%' }}
+                  onChange={() => updateWatermarkPreview()}
+                />
               </Form.Item>
             </div>
 
@@ -955,9 +1212,14 @@ const StoreForm: React.FC<{
                 <div className="aspect-video bg-[#f8f8f8] rounded-lg overflow-hidden border-2 border-gray-200">
                   <canvas
                     id="watermarkPreview"
+                    ref={canvasRef}
                     width="800"
                     height="450"
-                    className="w-full h-full"
+                    className={`w-full h-full ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    onMouseDown={handleDragStart}
+                    onMouseMove={handleDragMove}
+                    onMouseUp={handleDragEnd}
+                    onMouseLeave={handleDragEnd}
                   />
                 </div>
               </div>
@@ -1289,7 +1551,7 @@ const Settings: React.FC = () => {
       ),
     },
     {
-      title: '操作',
+      title: '���作',
       key: 'action',
       render: (_: any, record: StoreGroup) => (
         <Space size="middle">
@@ -1372,7 +1634,7 @@ const Settings: React.FC = () => {
               />
             </Card>
 
-            <Card title="店铺组管理" className="shadow-sm">
+            <Card title="��铺组管理" className="shadow-sm">
               <div className="mb-4">
                 <Button 
                   type="primary" 
