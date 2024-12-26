@@ -217,7 +217,7 @@ const TemplateList: React.FC<{
 const StoreForm: React.FC<{
   form: FormInstance;
   initialValues?: StoreAccount;
-  onSubmit: (values: StoreAccount) => void;
+  onSubmit: (values: any) => void;
   onCancel: () => void;
 }> = ({ form, initialValues, onSubmit, onCancel }) => {
   const [isTemplateModalVisible, setIsTemplateModalVisible] = useState(false);
@@ -225,6 +225,8 @@ const StoreForm: React.FC<{
   const [templates, setTemplates] = useState<ProductTemplate[]>(
     initialValues?.features?.templates || []
   );
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState(0);
 
   useEffect(() => {
     if (form && initialValues) {
@@ -233,16 +235,80 @@ const StoreForm: React.FC<{
     }
   }, [form, initialValues]);
 
-  // 初始化水印预览
-  useEffect(() => {
-    updateWatermarkPreview(
-      initialValues?.watermarkText,
-      initialValues?.watermarkSettings
-    );
-  }, [initialValues?.watermarkText, initialValues?.watermarkSettings]);
+  // 处理预览图片上传
+  const handlePreviewImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+
+    try {
+      const newImages: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const imageUrl = URL.createObjectURL(file);
+        newImages.push(imageUrl);
+      }
+      // 合并新上传的图片和已有的图片
+      setPreviewImages(prev => [...prev, ...newImages]);
+      // 如果是第一次上传图片，设置当前预览索引
+      if (previewImages.length === 0) {
+        setCurrentPreviewIndex(0);
+      }
+
+      // 分析第一张新上传的图片
+      if (newImages.length > 0) {
+        const img = new Image();
+        img.src = newImages[0];
+        
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          
+          if (form.getFieldValue(['watermarkSettings', 'smartMode'])) {
+            const { color, opacity } = analyzeImage(imageData);
+            form.setFieldsValue({
+              watermarkSettings: {
+                ...form.getFieldValue('watermarkSettings'),
+                color,
+                opacity
+              }
+            });
+          }
+
+          updateWatermarkPreview();
+        };
+      }
+    } catch (error) {
+      console.error('处理预览图片失败:', error);
+      message.error('处理预览图片失败，请重试');
+    }
+    // 清空input的value，确保相同文件可以重复上传
+    e.target.value = '';
+  };
+
+  // 删除单张图片
+  const handleDeleteImage = (index: number) => {
+    setPreviewImages(prev => {
+      const newImages = [...prev];
+      newImages.splice(index, 1);
+      // 如果删除的是当前预览的图片，调整预览索引
+      if (currentPreviewIndex >= newImages.length) {
+        setCurrentPreviewIndex(Math.max(0, newImages.length - 1));
+      } else if (index < currentPreviewIndex) {
+        setCurrentPreviewIndex(currentPreviewIndex - 1);
+      }
+      return newImages;
+    });
+  };
 
   // 更新水印预览
-  const updateWatermarkPreview = (text?: string, settings?: any) => {
+  const updateWatermarkPreview = (text?: string) => {
     const canvas = document.getElementById('watermarkPreview') as HTMLCanvasElement;
     if (!canvas) return;
 
@@ -251,58 +317,36 @@ const StoreForm: React.FC<{
 
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // 绘制背景
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    if (!text) return;
 
-    // 获取水印设置
-    const {
-      fontSize = 20,
-      opacity = 0.15,
-      rotate = 0,
-      color = '#000000',
-      repeat = false,
-      gap = 100
-    } = settings || {};
+    // 如果有预览图片，绘制当前选中的图片
+    if (previewImages.length > 0) {
+      const img = new Image();
+      img.src = previewImages[currentPreviewIndex];
+      img.onload = () => {
+        // 计算缩放比例以适应canvas
+        const scale = Math.min(
+          canvas.width / img.width,
+          canvas.height / img.height
+        );
+        const width = img.width * scale;
+        const height = img.height * scale;
+        const x = (canvas.width - width) / 2;
+        const y = (canvas.height - height) / 2;
 
-    // 设置水印样式
-    ctx.font = `${fontSize}px Arial`;
-    ctx.fillStyle = color;
-    ctx.globalAlpha = opacity;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+        // 绘制图片
+        ctx.drawImage(img, x, y, width, height);
 
-    if (!repeat) {
-      // 单个水印
-      ctx.save();
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((rotate * Math.PI) / 180);
-      ctx.fillText(text, 0, 0);
-      ctx.restore();
+        // 绘制水印
+        drawWatermark(ctx, text);
+      };
     } else {
-      // 重复水印
-      const textWidth = ctx.measureText(text).width;
-      const rows = Math.ceil(canvas.height / gap);
-      const cols = Math.ceil(canvas.width / gap);
-      const offsetX = gap / 2;
-      const offsetY = gap / 2;
-
-      for (let i = 0; i < rows; i++) {
-        for (let j = 0; j < cols; j++) {
-          ctx.save();
-          ctx.translate(j * gap + offsetX, i * gap + offsetY);
-          ctx.rotate((rotate * Math.PI) / 180);
-          ctx.fillText(text, 0, 0);
-          ctx.restore();
-        }
-      }
+      // 绘制背景
+      ctx.fillStyle = '#f8f8f8';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制水印
+      drawWatermark(ctx, text);
     }
-
-    // 恢复透明度
-    ctx.globalAlpha = 1;
   };
 
   const handleSubmit = (values: any) => {
@@ -311,7 +355,6 @@ const StoreForm: React.FC<{
       features: {
         ...values.features,
         templates,
-        priceAdjustment: 0
       }
     });
   };
@@ -363,6 +406,205 @@ const StoreForm: React.FC<{
     })));
   };
 
+  // 绘制水印预览
+  const drawWatermark = (ctx: CanvasRenderingContext2D, text?: string) => {
+    const values = form.getFieldsValue();
+    const watermarkText = text ?? values.watermarkText;
+    const settings = values.watermarkSettings || {};
+    
+    if (!watermarkText) return;
+
+    // 设置水印样式
+    const fontSize = settings.fontSize || 20;
+    const opacity = (settings.opacity || 15) / 100;
+    const position = settings.position || 'center';
+    const rotation = (settings.rotation || 0) * Math.PI / 180;
+    const mode = settings.mode || 'single';
+    const color = settings.color || '#000000';
+    const fontFamily = settings.fontFamily || 'Arial';
+    
+    ctx.save();
+    ctx.font = `${fontSize}px ${fontFamily}`;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = opacity;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    if (mode === 'single') {
+      // 计算位置
+      let x = ctx.canvas.width / 2;
+      let y = ctx.canvas.height / 2;
+      
+      switch (position) {
+        case 'top-left':
+          x = fontSize * 2;
+          y = fontSize;
+          break;
+        case 'top-right':
+          x = ctx.canvas.width - fontSize * 2;
+          y = fontSize;
+          break;
+        case 'bottom-left':
+          x = fontSize * 2;
+          y = ctx.canvas.height - fontSize;
+          break;
+        case 'bottom-right':
+          x = ctx.canvas.width - fontSize * 2;
+          y = ctx.canvas.height - fontSize;
+          break;
+      }
+      
+      // 应用旋转
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.fillText(watermarkText, 0, 0);
+    } else {
+      // 平铺模式
+      const textWidth = ctx.measureText(watermarkText).width;
+      const gap = textWidth + fontSize;
+      
+      for (let y = fontSize; y < ctx.canvas.height; y += gap) {
+        for (let x = fontSize * 2; x < ctx.canvas.width; x += gap) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.rotate(rotation);
+          ctx.fillText(watermarkText, 0, 0);
+          ctx.restore();
+        }
+      }
+    }
+    
+    ctx.restore();
+  };
+
+  // 分析图片并获取最佳水印参数
+  const analyzeImage = (imageData: ImageData): {
+    color: string;
+    opacity: number;
+  } => {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+    
+    // 计算中心区域（使用更大的采样区域）
+    const centerSize = Math.min(width, height) * 0.6; // 增加采样区域到60%
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const startX = Math.max(0, centerX - centerSize / 2);
+    const startY = Math.max(0, centerY - centerSize / 2);
+    const endX = Math.min(width, centerX + centerSize / 2);
+    const endY = Math.min(height, centerY + centerSize / 2);
+    
+    let totalBrightness = 0;
+    let edgeStrength = 0;
+    let pixelCount = 0;
+    
+    // 用于颜色分析的变量
+    let histogram = new Array(256).fill(0); // 亮度直方图
+    let dominantColors = new Map(); // 主导色统计
+    
+    // 分析图片特征
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const i = (y * width + x) * 4;
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // 计算感知亮度 (使用更精确的ITU-R BT.709标准)
+        const brightness = Math.round(0.2126 * r + 0.7152 * g + 0.0722 * b);
+        totalBrightness += brightness;
+        histogram[brightness]++;
+        
+        // 统计主导色
+        const colorKey = `${Math.floor(r/32)},${Math.floor(g/32)},${Math.floor(b/32)}`;
+        dominantColors.set(colorKey, (dominantColors.get(colorKey) || 0) + 1);
+        
+        // 计算局部对比度
+        if (x > startX && y > startY && x < endX - 1 && y < endY - 1) {
+          const dx = Math.abs(data[i] - data[i + 4]);
+          const dy = Math.abs(data[i] - data[i + width * 4]);
+          edgeStrength += Math.sqrt(dx * dx + dy * dy); // 使用欧几里得距离
+        }
+        
+        pixelCount++;
+      }
+    }
+    
+    // 计算图片特征
+    const avgBrightness = totalBrightness / pixelCount;
+    const complexity = edgeStrength / (pixelCount * Math.sqrt(2 * 255 * 255));
+    
+    // 计算亮度分布特征
+    const medianIndex = pixelCount / 2;
+    let count = 0;
+    let medianBrightness = 0;
+    for (let i = 0; i < 256; i++) {
+      count += histogram[i];
+      if (count >= medianIndex) {
+        medianBrightness = i;
+        break;
+      }
+    }
+    
+    // 计算亮度标准差
+    let variance = 0;
+    for (let i = 0; i < 256; i++) {
+      variance += Math.pow(i - avgBrightness, 2) * histogram[i];
+    }
+    const stdDev = Math.sqrt(variance / pixelCount);
+    
+    // 根据图片特征计算水印参数
+    const baseOpacity = 20; // 基础不透明度提高到20%
+    const complexityFactor = Math.min(Math.round(complexity * 150), 25); // 根据复杂度调整不透明度
+    const contrastFactor = Math.min(Math.round(stdDev / 8), 15); // 根据对比度调整不透明度
+    
+    // 综合考虑多个因素计算最终不透明度
+    const opacity = Math.min(Math.max(
+      baseOpacity + complexityFactor + contrastFactor,
+      20
+    ), 45);
+    
+    // 优化颜色选择逻辑
+    let color = '#ffffff'; // 默认使用白色
+    
+    // 使用更复杂的判断逻辑
+    const darkThreshold = 85; // 暗色阈值
+    const brightThreshold = 170; // 亮色阈值
+    const contrastThreshold = 40; // 对比度阈值
+    
+    if (
+      avgBrightness > brightThreshold || // 图片很亮
+      (medianBrightness > brightThreshold && stdDev < contrastThreshold) || // 中等亮度但很均匀
+      (avgBrightness > 128 && complexity < 0.1) // 中等亮度且很简单
+    ) {
+      color = '#000000'; // 使用黑色
+    } else if (
+      avgBrightness < darkThreshold || // 图片很暗
+      (medianBrightness < darkThreshold && stdDev < contrastThreshold) || // 中等暗度且均匀
+      (complexity > 0.3 && avgBrightness < 128) // 复杂且偏暗
+    ) {
+      color = '#ffffff'; // 使用白色
+    } else {
+      // 对于中间情况，根据主导色的亮度决定
+      const sortedColors = Array.from(dominantColors.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3); // 取前三个主导色
+        
+      const dominantBrightness = sortedColors.reduce((acc, [key, count]) => {
+        const [r, g, b] = key.split(',').map(x => parseInt(x) * 32);
+        return acc + (0.2126 * r + 0.7152 * g + 0.0722 * b) * count;
+      }, 0) / sortedColors.reduce((acc, [_, count]) => acc + count, 0);
+      
+      color = dominantBrightness > 128 ? '#000000' : '#ffffff';
+    }
+    
+    return {
+      color,
+      opacity
+    };
+  };
+
   return (
     <div className="space-y-4">
       <Form
@@ -398,130 +640,337 @@ const StoreForm: React.FC<{
         {/* 水印设置 */}
         <Card title="水印设置" className="shadow-sm">
           <div className="space-y-4">
-            <Form.Item
-              name="watermarkText"
-              label="水印文本"
-              tooltip="导出商品图片时可选择添加此水印"
-            >
-              <Input.TextArea 
-                placeholder="请输入水印文本"
-                onChange={(e) => {
-                  const text = e.target.value;
-                  const settings = form.getFieldValue('watermarkSettings');
-                  updateWatermarkPreview(text, settings);
-                }}
-              />
-            </Form.Item>
+            <div className="grid grid-cols-4 gap-4">
+              <Form.Item
+                name="watermarkText"
+                label="水印文本"
+                tooltip="导出商品图片时可选择添加此水印"
+                className="mb-0"
+              >
+                <Input.TextArea 
+                  placeholder="请输入水印文本" 
+                  rows={1}
+                  onChange={(e) => updateWatermarkPreview(e.target.value)}
+                />
+              </Form.Item>
 
-            <Form.Item
-              name={['watermarkSettings', 'fontSize']}
-              label="字体大小"
-              initialValue={20}
-            >
-              <InputNumber
-                min={12}
-                max={72}
-                onChange={() => {
-                  const text = form.getFieldValue('watermarkText');
-                  const settings = form.getFieldValue('watermarkSettings');
-                  updateWatermarkPreview(text, settings);
-                }}
-              />
-            </Form.Item>
+              <Form.Item
+                name={['watermarkSettings', 'position']}
+                label="水印位置"
+                initialValue="center"
+                className="mb-0"
+              >
+                <Select onChange={() => updateWatermarkPreview()}>
+                  <Select.Option value="center">居中</Select.Option>
+                  <Select.Option value="top-left">左上角</Select.Option>
+                  <Select.Option value="top-right">右上角</Select.Option>
+                  <Select.Option value="bottom-left">左下角</Select.Option>
+                  <Select.Option value="bottom-right">右下角</Select.Option>
+                </Select>
+              </Form.Item>
 
-            <Form.Item
-              name={['watermarkSettings', 'opacity']}
-              label="透明度"
-              initialValue={0.15}
-            >
-              <Slider
-                min={0}
-                max={1}
-                step={0.05}
-                onChange={() => {
-                  const text = form.getFieldValue('watermarkText');
-                  const settings = form.getFieldValue('watermarkSettings');
-                  updateWatermarkPreview(text, settings);
-                }}
-              />
-            </Form.Item>
+              <Form.Item
+                name={['watermarkSettings', 'mode']}
+                label="显示模式"
+                initialValue="single"
+                className="mb-0"
+              >
+                <Select onChange={() => updateWatermarkPreview()}>
+                  <Select.Option value="single">单个水印</Select.Option>
+                  <Select.Option value="tile">平铺水印</Select.Option>
+                </Select>
+              </Form.Item>
 
-            <Form.Item
-              name={['watermarkSettings', 'rotate']}
-              label="旋转角度"
-              initialValue={0}
-            >
-              <Slider
-                min={-180}
-                max={180}
-                onChange={() => {
-                  const text = form.getFieldValue('watermarkText');
-                  const settings = form.getFieldValue('watermarkSettings');
-                  updateWatermarkPreview(text, settings);
-                }}
-              />
-            </Form.Item>
+              <Form.Item
+                name={['watermarkSettings', 'color']}
+                label="水印颜色"
+                initialValue="#000000"
+                className="mb-0"
+              >
+                <Input
+                  type="color"
+                  style={{ width: '100%', padding: '2px' }}
+                  onChange={() => updateWatermarkPreview()}
+                />
+              </Form.Item>
+            </div>
 
-            <Form.Item
-              name={['watermarkSettings', 'color']}
-              label="水印颜色"
-              initialValue="#000000"
-            >
-              <Input
-                type="color"
-                style={{ width: 60 }}
-                onChange={(e) => {
-                  const text = form.getFieldValue('watermarkText');
-                  const settings = form.getFieldValue('watermarkSettings');
-                  updateWatermarkPreview(text, settings);
-                }}
-              />
-            </Form.Item>
+            <div className="grid grid-cols-4 gap-4">
+              <Form.Item
+                name={['watermarkSettings', 'fontSize']}
+                label="字体大小"
+                initialValue={20}
+                className="mb-0"
+              >
+                <InputNumber
+                  min={12}
+                  max={72}
+                  style={{ width: '100%' }}
+                  onChange={() => updateWatermarkPreview()}
+                />
+              </Form.Item>
 
-            <Form.Item
-              name={['watermarkSettings', 'repeat']}
-              label="重复水印"
-              valuePropName="checked"
-              initialValue={false}
-            >
-              <Switch
-                onChange={() => {
-                  const text = form.getFieldValue('watermarkText');
-                  const settings = form.getFieldValue('watermarkSettings');
-                  updateWatermarkPreview(text, settings);
-                }}
-              />
-            </Form.Item>
+              <Form.Item
+                name={['watermarkSettings', 'opacity']}
+                label="不透明度"
+                initialValue={15}
+                className="mb-0"
+              >
+                <Slider 
+                  min={1} 
+                  max={100} 
+                  onChange={() => updateWatermarkPreview()} 
+                  tooltip={{ formatter: (value) => `${value}%` }}
+                  marks={{
+                    1: '1%',
+                    25: '25%',
+                    50: '50%',
+                    75: '75%',
+                    100: '100%'
+                  }}
+                />
+              </Form.Item>
 
-            <Form.Item
-              name={['watermarkSettings', 'gap']}
-              label="重复间距"
-              initialValue={100}
-            >
-              <InputNumber
-                min={50}
-                max={200}
-                disabled={!form.getFieldValue(['watermarkSettings', 'repeat'])}
-                onChange={() => {
-                  const text = form.getFieldValue('watermarkText');
-                  const settings = form.getFieldValue('watermarkSettings');
-                  updateWatermarkPreview(text, settings);
-                }}
-              />
-            </Form.Item>
+              <Form.Item
+                name={['watermarkSettings', 'rotation']}
+                label="旋转角度"
+                initialValue={15}
+                className="mb-0"
+              >
+                <InputNumber
+                  min={-180}
+                  max={180}
+                  style={{ width: '100%' }}
+                  onChange={() => updateWatermarkPreview()}
+                />
+              </Form.Item>
 
-            <div style={{ marginBottom: 16 }}>
-              <div>水印预览：</div>
-              <canvas
-                id="watermarkPreview"
-                width="400"
-                height="300"
-                style={{
-                  border: '1px solid #d9d9d9',
-                  borderRadius: 2,
-                  background: '#f0f0f0'
-                }}
-              />
+              <Form.Item
+                name={['watermarkSettings', 'fontFamily']}
+                label="字体"
+                initialValue="Arial"
+                className="mb-0"
+              >
+                <Select onChange={() => updateWatermarkPreview()}>
+                  <Select.Option value="Arial">Arial</Select.Option>
+                  <Select.Option value="SimSun">宋体</Select.Option>
+                  <Select.Option value="Microsoft YaHei">微软雅黑</Select.Option>
+                  <Select.Option value="SimHei">黑体</Select.Option>
+                  <Select.Option value="KaiTi">楷体</Select.Option>
+                  <Select.Option value="FangSong">仿宋</Select.Option>
+                </Select>
+              </Form.Item>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-3 my-5">
+                <div className="flex justify-between items-center h-8">
+                  <span className="text-gray-700 font-medium">预览图片</span>
+                  <Space>
+                    {previewImages.length > 0 && (
+                      <Button 
+                        size="small"
+                        onClick={() => {
+                          setPreviewImages([]);
+                          setCurrentPreviewIndex(0);
+                        }}
+                      >
+                        清空图片
+                      </Button>
+                    )}
+                    <Button 
+                      type="primary"
+                      size="small"
+                      onClick={() => document.getElementById('previewImage')?.click()}
+                    >
+                      上传图片
+                    </Button>
+                  </Space>
+                </div>
+                <div 
+                  className="aspect-video bg-gray-50 rounded-lg overflow-hidden border-2 border-dashed border-gray-200 hover:border-blue-400 transition-colors cursor-pointer relative group"
+                  onClick={() => document.getElementById('previewImage')?.click()}
+                >
+                  {previewImages.length > 0 ? (
+                    <img
+                      src={previewImages[currentPreviewIndex]}
+                      alt="预览图"
+                      className="w-full h-full object-contain bg-[#f8f8f8]"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <div className="text-gray-400 mb-2">点击或拖拽上传图片</div>
+                      <div className="text-gray-300 text-sm">支持多张图片上传（JPG、PNG）</div>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    id="previewImage"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handlePreviewImageUpload}
+                  />
+                </div>
+
+                {previewImages.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto py-2">
+                    {previewImages.map((image, index) => (
+                      <div
+                        key={image}
+                        className={`relative flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden cursor-pointer border-2 transition-all group ${
+                          index === currentPreviewIndex 
+                            ? 'border-blue-500 shadow-md' 
+                            : 'border-transparent hover:border-blue-300'
+                        }`}
+                        onClick={() => {
+                          setCurrentPreviewIndex(index);
+                          const img = new Image();
+                          img.src = image;
+                          img.onload = () => {
+                            // 检查是否开启了智能水印
+                            if (form.getFieldValue(['watermarkSettings', 'smartMode'])) {
+                              const canvas = document.createElement('canvas');
+                              const ctx = canvas.getContext('2d');
+                              if (!ctx) return;
+
+                              canvas.width = img.width;
+                              canvas.height = img.height;
+                              ctx.drawImage(img, 0, 0);
+                              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                              const { color, opacity } = analyzeImage(imageData);
+                              
+                              // 更新表单值
+                              const newSettings = {
+                                ...form.getFieldValue('watermarkSettings'),
+                                color,
+                                opacity
+                              };
+                              
+                              // 使用setFieldsValue更新整个watermarkSettings对象
+                              form.setFieldsValue({
+                                watermarkSettings: newSettings
+                              });
+                              
+                              // 强制触发表单更新
+                              setTimeout(() => {
+                                updateWatermarkPreview();
+                              }, 0);
+                            } else {
+                              updateWatermarkPreview();
+                            }
+                          };
+                        }}
+                      >
+                        <img
+                          src={image}
+                          alt={`预览图${index + 1}`}
+                          className="w-full h-full object-contain bg-[#f8f8f8]"
+                        />
+                        <div 
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteImage(index);
+                          }}
+                        >
+                          <Button 
+                            type="primary" 
+                            danger 
+                            size="small" 
+                            shape="circle" 
+                            icon={<DeleteOutlined />}
+                            className="flex items-center justify-center"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3 my-5">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700 font-medium">水印效果</span>
+                  <Form.Item
+                    name={['watermarkSettings', 'smartMode']}
+                    valuePropName="checked"
+                    initialValue={false}
+                    className="mb-0"
+                  >
+                    <Switch 
+                      checkedChildren="智能水印开启" 
+                      unCheckedChildren="智能水印关闭"
+                      onChange={(checked) => {
+                        if (checked && previewImages.length > 0) {
+                          const img = new Image();
+                          img.src = previewImages[currentPreviewIndex];
+                          img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) return;
+
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const { color, opacity } = analyzeImage(imageData);
+                            
+                            // 更新表单值
+                            const newSettings = {
+                              ...form.getFieldValue('watermarkSettings'),
+                              smartMode: checked,
+                              color,
+                              opacity
+                            };
+                            
+                            // 使用setFieldsValue更新整个watermarkSettings对象
+                            form.setFieldsValue({
+                              watermarkSettings: newSettings
+                            });
+                            
+                            // 强制触发表单更新
+                            setTimeout(() => {
+                              updateWatermarkPreview();
+                            }, 0);
+                          };
+                        } else {
+                          // 关闭智能水印时，重置为默认值
+                          const defaultSettings = {
+                            ...form.getFieldValue('watermarkSettings'),
+                            smartMode: false,
+                            color: '#000000',
+                            opacity: 15
+                          };
+                          
+                          form.setFieldsValue({
+                            watermarkSettings: defaultSettings
+                          });
+                          updateWatermarkPreview();
+                        }
+                      }}
+                    />
+                  </Form.Item>
+                </div>
+                <div className="aspect-video bg-[#f8f8f8] rounded-lg overflow-hidden border-2 border-gray-200">
+                  <canvas
+                    id="watermarkPreview"
+                    width="800"
+                    height="450"
+                    className="w-full h-full"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 bg-blue-50 text-blue-600 p-3 rounded-lg text-sm flex items-start">
+              <div className="mr-2 mt-0.5">ℹ️</div>
+              <div>
+                <div className="font-medium mb-1">智能水印说明</div>
+                <div className="text-blue-500">
+                  开启智能水印后，系统会分析图片特征（亮度、对比度、复杂度等），自动调整水印颜色和透明度，确保水印清晰可见且不影响图片整体美观。您也可以在此基础上手动微调各项参数。
+                </div>
+              </div>
             </div>
           </div>
         </Card>
