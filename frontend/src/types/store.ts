@@ -6,6 +6,16 @@ export interface StoreAccount {
   password: string;
   cookie?: string;
   watermarkText?: string;
+  watermarkSettings?: {
+    fontSize?: number;
+    opacity?: number;
+    position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    rotation?: number;
+    mode?: 'single' | 'tile';
+    color?: string;
+    fontFamily?: string;
+    isSmartMode?: boolean;
+  };
   createdAt: string;
   lastUpdated?: string;
   status: 'active' | 'inactive';

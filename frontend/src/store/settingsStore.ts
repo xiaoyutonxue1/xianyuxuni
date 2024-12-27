@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface ProductTemplate {
   id: string;
@@ -178,10 +178,10 @@ const defaultCategories = [
   '电影'
 ];
 
-const useSettingsStore = create<SettingsState>()(
-  persist(
-    (set) => ({
-      storeAccounts: [],
+export const useSettingsStore = create(
+  persist<SettingsState & SettingsActions>(
+    (set, get) => ({
+      storeAccounts: defaultStores,
       storeGroups: [],
       productSettings: {
         defaultDistributeAccounts: [],
@@ -199,62 +199,67 @@ const useSettingsStore = create<SettingsState>()(
         deliveryMethods: defaultDeliveryMethods,
         defaultSpecName: '发货网盘',
       },
-      addStoreAccount: (account) =>
-        set((state) => ({
-          storeAccounts: [...state.storeAccounts, account],
-        })),
-      removeStoreAccount: (id) =>
-        set((state) => ({
-          storeAccounts: state.storeAccounts.filter((a) => a.id !== id),
-          storeGroups: state.storeGroups.map(group => ({
-            ...group,
-            storeIds: group.storeIds.filter(storeId => storeId !== id)
-          }))
-        })),
-      updateStoreAccount: (id, account) =>
-        set((state) => ({
-          storeAccounts: state.storeAccounts.map((a) =>
-            a.id === id ? { ...a, ...account } : a
-          ),
-        })),
-      updateProductSettings: (settings) =>
-        set((state) => ({
-          productSettings: {
-            ...state.productSettings,
-            ...settings,
-          },
-        })),
-      addCategory: (category) =>
-        set((state) => ({
-          productSettings: {
-            ...state.productSettings,
-            categories: [...new Set([...state.productSettings.categories, category])].sort(),
-          },
-        })),
-      removeCategory: (category) =>
-        set((state) => ({
-          productSettings: {
-            ...state.productSettings,
-            categories: state.productSettings.categories.filter((c) => c !== category),
-          },
-        })),
-      addStoreGroup: (group) =>
-        set((state) => ({
-          storeGroups: [...state.storeGroups, group],
-        })),
-      updateStoreGroup: (id, group) =>
-        set((state) => ({
-          storeGroups: state.storeGroups.map((g) =>
-            g.id === id ? { ...g, ...group } : g
-          ),
-        })),
-      removeStoreGroup: (id) =>
-        set((state) => ({
-          storeGroups: state.storeGroups.filter((g) => g.id !== id),
-        })),
+      updateStoreAccount: (id: string, data: Partial<StoreAccount>) => {
+        try {
+          const storeAccounts = get().storeAccounts;
+          const index = storeAccounts.findIndex(account => account.id === id);
+          
+          if (index === -1) {
+            console.warn('Store account not found:', id);
+            return false;
+          }
+
+          // 深度合并水印设置
+          const currentAccount = storeAccounts[index];
+          const updatedAccount = {
+            ...currentAccount,
+            ...data,
+            watermarkSettings: {
+              ...currentAccount.watermarkSettings,
+              ...(data.watermarkSettings || {}),
+              lastUpdated: new Date().toISOString()
+            }
+          };
+          
+          const updatedAccounts = [
+            ...storeAccounts.slice(0, index),
+            updatedAccount,
+            ...storeAccounts.slice(index + 1)
+          ];
+          
+          // 先更新状态
+          set({ storeAccounts: updatedAccounts });
+          
+          // 再保存到localStorage
+          try {
+            const currentState = get();
+            const stateToSave = {
+              storeAccounts: updatedAccounts,
+              productSettings: currentState.productSettings,
+              storeGroups: currentState.storeGroups
+            };
+
+            console.log('Saving state:', stateToSave);
+
+            return true;
+          } catch (e) {
+            console.error('Failed to save settings:', e);
+            return false;
+          }
+        } catch (error) {
+          console.error('Failed to update store account:', error);
+          return false;
+        }
+      }
     }),
     {
       name: 'settings-storage',
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        storeAccounts: state.storeAccounts,
+        productSettings: state.productSettings,
+        storeGroups: state.storeGroups
+      })
     }
   )
 );

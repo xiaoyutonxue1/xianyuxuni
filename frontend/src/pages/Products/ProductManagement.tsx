@@ -93,7 +93,7 @@ const ProductManagement: React.FC = () => {
     updateDeliveryMethods();
   }, []);
 
-  // 过滤和搜索商��
+  // 过滤和搜索商品
   const getFilteredProducts = () => {
     let filteredData = [...products];
     
@@ -354,20 +354,25 @@ const ProductManagement: React.FC = () => {
     });
   };
 
-  // 处理图片保存
-  const saveImage = async (imageUrl: string, watermarkText?: string, watermarkSettings?: StoreAccount['watermarkSettings']) => {
+  // 修改saveImage函数
+  const saveImage = async (
+    imageUrl: string,
+    fileName: string,
+    folderHandle: FileSystemDirectoryHandle,
+    watermarkText?: string,
+    watermarkSettings?: StoreAccount['watermarkSettings']
+  ) => {
     try {
       const response = await fetch(imageUrl);
       const blob = await response.blob();
       
+      let finalBlob = blob;
       if (watermarkText && addWatermark) {
-        // 创建一个临时图片对象
-        const img = new Image();
+        const img = new window.Image();
         img.src = URL.createObjectURL(blob);
         
-        return new Promise<Blob>((resolve, reject) => {
+        finalBlob = await new Promise<Blob>((resolve, reject) => {
           img.onload = async () => {
-            // 创建canvas
             const canvas = document.createElement('canvas');
             canvas.width = img.width;
             canvas.height = img.height;
@@ -378,29 +383,26 @@ const ProductManagement: React.FC = () => {
               return;
             }
             
-            // 绘制原图
             ctx.drawImage(img, 0, 0);
             
-            // 设置水印样式
             const settings = watermarkSettings || {};
             const fontSize = settings.fontSize || 20;
             const opacity = (settings.opacity || 15) / 100;
             const position = settings.position || 'center';
             const rotation = (settings.rotation || 0) * Math.PI / 180;
             const mode = settings.mode || 'single';
+            const fontFamily = settings.fontFamily || 'Microsoft YaHei';
             
-            // 智能分析最佳水印颜色
-            const color = await analyzeImageColor(img);
+            const color = settings.color || await analyzeImageColor(img);
             
             ctx.save();
-            ctx.font = `${fontSize * (img.width / 300)}px Arial`; // 根据图片尺寸调整字体大小
+            ctx.font = `${fontSize * (img.width / 300)}px ${fontFamily}`;
             ctx.fillStyle = color;
             ctx.globalAlpha = opacity;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            
+
             if (mode === 'single') {
-              // 计算位置
               let x = img.width / 2;
               let y = img.height / 2;
               
@@ -423,14 +425,12 @@ const ProductManagement: React.FC = () => {
                   break;
               }
               
-              // 应用旋转
               ctx.translate(x, y);
               ctx.rotate(rotation);
               ctx.fillText(watermarkText, 0, 0);
             } else {
-              // 平铺模式
               const scaledFontSize = fontSize * (img.width / 300);
-              ctx.font = `${scaledFontSize}px Arial`;
+              ctx.font = `${scaledFontSize}px ${fontFamily}`;
               const textWidth = ctx.measureText(watermarkText).width;
               const gap = textWidth + scaledFontSize;
               
@@ -447,7 +447,6 @@ const ProductManagement: React.FC = () => {
             
             ctx.restore();
             
-            // 转换为blob
             canvas.toBlob((resultBlob) => {
               if (resultBlob) {
                 resolve(resultBlob);
@@ -463,14 +462,19 @@ const ProductManagement: React.FC = () => {
         });
       }
       
-      return blob;
+      const fileHandle = await folderHandle.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(finalBlob);
+      await writable.close();
+      
+      return true;
     } catch (error) {
       console.error('保存图片失败:', error);
       throw error;
     }
   };
 
-  // 处理批量导出
+  // 修改handleBatchExport函数中的图片保存逻辑
   const handleBatchExport = async () => {
     try {
       const dirHandle = await window.showDirectoryPicker({
@@ -485,14 +489,15 @@ const ProductManagement: React.FC = () => {
           const store = storeAccounts.find(store => store.id === product.storeId);
           const storeName = store?.name || '未知店铺';
           const watermarkText = addWatermark ? store?.watermarkText : undefined;
+          const watermarkSettings = addWatermark ? store?.watermarkSettings : undefined;
           
           // 直接使用原始名称，不进行编码
           const folderName = `${product.name}【${storeName}】`;
           const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
 
-          // 创建文本文件时使用 TextEncoder 处理中文
+          // 创建文本文件
           const files: Record<string, string> = {
-            '商品名称.txt': product.name || '',
+            '商品名��.txt': product.name || '',
             '分类.txt': product.category || '',
             '价格.txt': product.price?.toString() || '0',
             '库存.txt': product.stock?.toString() || '0',
@@ -522,15 +527,29 @@ const ProductManagement: React.FC = () => {
           // 创建图片文件夹
           const imagesFolderHandle = await folderHandle.getDirectoryHandle('图片', { create: true });
 
+          // 保存封面图片
           if (product.coverImage) {
-            await saveImage(product.coverImage, '封面图片.jpg', watermarkText);
+            await saveImage(
+              product.coverImage,
+              '封面图片.jpg',
+              imagesFolderHandle,
+              watermarkText,
+              watermarkSettings
+            );
           }
 
+          // 保存公共图片
           if (product.commonImages && product.commonImages.length > 0) {
             for (let i = 0; i < product.commonImages.length; i++) {
               const image = product.commonImages[i];
               if (image.url) {
-                await saveImage(image.url, `公共图片_${i + 1}.jpg`, watermarkText);
+                await saveImage(
+                  image.url,
+                  `公共图片_${i + 1}.jpg`,
+                  imagesFolderHandle,
+                  watermarkText,
+                  watermarkSettings
+                );
               }
             }
           }
@@ -542,24 +561,14 @@ const ProductManagement: React.FC = () => {
         }
       }
 
-      if (successCount === selectedRows.length) {
-        message.success('所有商品导出成功');
-      } else if (successCount === 0) {
-        message.error('所有商品导出失败');
+      if (failedProducts.length > 0) {
+        message.warning(`部分商品导出失败：${failedProducts.join(', ')}`);
       } else {
-        message.warning(
-          `部分商品导出成功（${successCount}/${selectedRows.length}）\n` +
-          `失败商品：${failedProducts.join('、')}`
-        );
+        message.success(`成功导出 ${successCount} 个商品`);
       }
     } catch (error) {
-      console.error('Export error:', error);
-      if (error instanceof Error && error.name === 'SecurityError') {
-        message.error('请允许访问文件系统权限');
-      } else {
-        message.error('导出失败');
-      }
-      throw error;
+      console.error('导出失败:', error);
+      message.error('导出失败，请重试');
     }
   };
 
@@ -577,22 +586,18 @@ const ProductManagement: React.FC = () => {
     let exportSuccess = false;
     
     try {
-      // 执行导出逻辑
       await handleBatchExport();
       exportSuccess = true;
-      // 导出成功后立即关闭面板
       setExportModalVisible(false);
       setUpdateStatusAfterExport(false);
     } catch (error) {
       console.error('Export failed:', error);
     }
 
-    // 只有在导出成功且勾选了更新状态时，才更新商品状态
     if (exportSuccess && updateStatusAfterExport && selectedRowKeys.length > 0) {
       let successCount = 0;
       let failedProducts: string[] = [];
 
-      // 逐个更新商品状态
       for (const product of selectedRows) {
         try {
           const updatedProduct = {
@@ -609,7 +614,6 @@ const ProductManagement: React.FC = () => {
         }
       }
 
-      // 根据更新结果显示提示
       if (successCount === selectedRows.length) {
         message.success('商品状态已全部更新为待发布');
       } else if (successCount === 0) {
@@ -621,8 +625,9 @@ const ProductManagement: React.FC = () => {
         );
       }
 
-      // 刷新商品列表
-      fetchProducts();
+      // 使用 store 的方法直接获取最新数据
+      setSelectedRowKeys([]);
+      setSelectedRows([]);
     }
   };
 
@@ -731,7 +736,7 @@ const ProductManagement: React.FC = () => {
       const watermarkSettings = currentStore?.watermarkSettings;
 
       // 创建文件夹
-      const folderName = `${product.name}【${currentStore?.name || '未���店铺'}】`;
+      const folderName = `${product.name}【${currentStore?.name || '未知店铺'}】`;
       const dirHandle = await window.showDirectoryPicker();
       const productFolderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
       const imagesFolderHandle = await productFolderHandle.getDirectoryHandle('images', { create: true });
@@ -740,8 +745,10 @@ const ProductManagement: React.FC = () => {
       if (product.coverImage) {
         const coverImageBlob = await saveImage(
           product.coverImage,
-          addWatermark ? watermarkText : undefined,
-          addWatermark ? watermarkSettings : undefined
+          '封面图片.jpg',
+          imagesFolderHandle,
+          watermarkText,
+          watermarkSettings
         );
         const coverImageHandle = await imagesFolderHandle.getFileHandle('封面图片.jpg', { create: true });
         const coverImageWritable = await coverImageHandle.createWritable();
@@ -756,8 +763,10 @@ const ProductManagement: React.FC = () => {
           if (image.url) {
             const imageBlob = await saveImage(
               image.url,
-              addWatermark ? watermarkText : undefined,
-              addWatermark ? watermarkSettings : undefined
+              `公共图片_${i + 1}.jpg`,
+              imagesFolderHandle,
+              watermarkText,
+              watermarkSettings
             );
             const imageHandle = await imagesFolderHandle.getFileHandle(`公共图片_${i + 1}.jpg`, { create: true });
             const imageWritable = await imageHandle.createWritable();
@@ -922,7 +931,7 @@ const ProductManagement: React.FC = () => {
                   </ul>
                 </div>
               ) : (
-                <div className="text-green-500">所有必填项目已完成</div>
+                <div className="text-green-500">所有项目已完成</div>
               )
             }
             title="完整度详情"

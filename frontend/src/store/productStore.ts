@@ -41,12 +41,42 @@ const getInitialState = () => {
 };
 
 // 保存数据到localStorage
-const saveToLocalStorage = (state: { products: Product[]; selections: ProductSelection[] }) => {
+const saveToLocalStorage = (key: string, value: any) => {
   try {
-    localStorage.setItem('products', JSON.stringify(state.products));
-    localStorage.setItem('selections', JSON.stringify(state.selections));
+    // 尝试压缩数据以减少存储空间
+    const serializedValue = JSON.stringify(value);
+    localStorage.setItem(key, serializedValue);
   } catch (error) {
-    console.error('Failed to save data to localStorage:', error);
+    if (error instanceof Error) {
+      console.warn(`Failed to save to localStorage: ${error.message}`);
+      
+      try {
+        // 如果是配额超出错误，尝试清理一些旧数据
+        if (error.name === 'QuotaExceededError') {
+          // 清理其他不重要的数据
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && !key.includes('products')) {
+              localStorage.removeItem(key);
+            }
+          }
+          
+          // 再次尝试保存
+          localStorage.setItem(key, serializedValue);
+        }
+      } catch (e) {
+        console.error('Failed to save even after clearing storage:', e);
+        // 如果还是失败，可以考虑只保存最新的 n 条数据
+        if (Array.isArray(value)) {
+          const reducedValue = value.slice(-50); // 只保留最新的 50 条数据
+          try {
+            localStorage.setItem(key, JSON.stringify(reducedValue));
+          } catch (e2) {
+            console.error('Failed to save even with reduced data');
+          }
+        }
+      }
+    }
   }
 };
 
@@ -57,7 +87,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       products: [...state.products, ...products],
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('products', newState.products);
     return newState;
   }),
   addProduct: (product) => set((state) => {
@@ -65,7 +95,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       products: [...state.products, product],
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('products', newState.products);
     return newState;
   }),
   updateProduct: (product) => set((state) => {
@@ -73,7 +103,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       products: state.products.map((p) => (p.id === product.id ? product : p)),
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('products', newState.products);
     return newState;
   }),
   removeProduct: (productId) => set((state) => {
@@ -81,7 +111,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       products: state.products.filter((p) => p.id !== productId),
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('products', newState.products);
     return newState;
   }),
   setSelections: (selections) => set((state) => {
@@ -89,7 +119,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       selections,
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('selections', newState.selections);
     return newState;
   }),
   updateSelection: (selection) => set((state) => {
@@ -97,7 +127,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       selections: state.selections.map((s) => (s.id === selection.id ? selection : s)),
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('selections', newState.selections);
     return newState;
   }),
   addSelection: (selection) => set((state) => {
@@ -105,7 +135,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       selections: [...state.selections, selection],
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('selections', newState.selections);
     return newState;
   }),
   removeSelection: (selectionId) => set((state) => {
@@ -113,7 +143,7 @@ const useProductStore = create<ProductStore>((set) => ({
       ...state,
       selections: state.selections.filter((s) => s.id !== selectionId),
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('selections', newState.selections);
     return newState;
   }),
   updateDeliveryMethods: () => set((state) => {
@@ -165,7 +195,8 @@ const useProductStore = create<ProductStore>((set) => ({
       products: updatedProducts,
       selections: updatedSelections,
     };
-    saveToLocalStorage(newState);
+    saveToLocalStorage('products', newState.products);
+    saveToLocalStorage('selections', newState.selections);
     return newState;
   }),
   setLoading: (loading) => set({ loading }),
