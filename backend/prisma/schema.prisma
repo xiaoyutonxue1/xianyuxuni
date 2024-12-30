@@ -59,16 +59,19 @@ model Selection {
 
 // 商品模型
 model Product {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String?
-  price       Float
-  status      String   @default("active")
-  specs       Json?
-  selectionId Int
-  createdBy   Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  title             String
+  description       String?
+  price             Float
+  status            String   @default("active")
+  specs             Json?
+  selectionId       Int
+  createdBy         Int
+  distributedTitle  String?
+  distributedContent String?
+  distributedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // 关联
   selection Selection @relation(fields: [selectionId], references: [id])
@@ -96,9 +99,8 @@ model Store {
 model Template {
   id          Int      @id @default(autoincrement())
   name        String
-  type        String
   content     String
-  isDefault   Boolean  @default(false)
+  variables   Json?    // 存储模板变量
   createdBy   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

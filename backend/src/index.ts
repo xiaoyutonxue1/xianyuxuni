@@ -8,6 +8,7 @@ import authRoutes from './routes/auth.routes';
 import selectionsRoutes from './routes/selections.routes';
 import productsRoutes from './routes/products.routes';
 import storesRoutes from './routes/stores.routes';
+import templatesRoutes from './routes/templates.routes';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -23,6 +24,7 @@ app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/selections`, selectionsRoutes);
 app.use(`${API_PREFIX}/products`, productsRoutes);
 app.use(`${API_PREFIX}/stores`, storesRoutes);
+app.use(`${API_PREFIX}/templates`, templatesRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {
