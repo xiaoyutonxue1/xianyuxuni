@@ -25,6 +25,7 @@ model User {
   stores        Store[]
   templates     Template[]
   operationLogs OperationLog[]
+  files         File[]
 }
 
 // 刷新Token模型
@@ -70,6 +71,8 @@ model Product {
   distributedTitle  String?
   distributedContent String?
   distributedAt     DateTime?
+  mainImage          String?    // 主图路径
+  images             String[]   // 详情图路径数组
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -120,4 +123,22 @@ model OperationLog {
 
   // 关联
   user User @relation(fields: [userId], references: [id])
+}
+
+// 文件模型
+model File {
+  id           Int      @id @default(autoincrement())
+  filename     String   // 存储的文件名
+  originalname String   // 原始文件名
+  mimetype     String   // 文件类型
+  size         Int      // 文件大小
+  path         String   // 文件路径
+  type         String   // 文件用途类型
+  description  String?  // 文件描述
+  uploadedBy   Int      // 上传用户ID
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 关联
+  user User @relation(fields: [uploadedBy], references: [id])
 } 

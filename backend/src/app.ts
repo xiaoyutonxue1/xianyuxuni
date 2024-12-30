@@ -8,6 +8,7 @@ import productsRoutes from './routes/products.routes';
 import storesRoutes from './routes/stores.routes';
 import templatesRoutes from './routes/templates.routes';
 import logger from './utils/logger';
+import uploadRoutes from './routes/upload.routes';
 
 const app = express();
 
@@ -16,6 +17,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+
+// 静态文件服务
+app.use('/uploads', express.static('uploads'));
 
 // 请求日志中间件
 app.use((req, res, next) => {
@@ -34,6 +38,7 @@ app.use(`${API_PREFIX}/selections`, selectionsRoutes);
 app.use(`${API_PREFIX}/products`, productsRoutes);
 app.use(`${API_PREFIX}/stores`, storesRoutes);
 app.use(`${API_PREFIX}/templates`, templatesRoutes);
+app.use(`${API_PREFIX}/upload`, uploadRoutes);
 
 // Error Handler
 app.use(errorHandler);

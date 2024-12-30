@@ -29,26 +29,14 @@ export const auth = async (
 
     // 检查用户是否存在
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: {
-        id: true,
-        username: true,
-        role: true,
-        status: true
-      }
+      where: { id: decoded.id }
     });
 
-    if (!user || user.status !== 'active') {
-      throw new AppError('用户不存在或已禁用', 401);
+    if (!user) {
+      throw new AppError('用户不存在', 401);
     }
 
-    // 将用户信息添加到请求对象
-    req.user = {
-      id: user.id,
-      username: user.username,
-      role: user.role
-    };
-
+    req.user = user;
     next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {

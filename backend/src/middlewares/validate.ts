@@ -1,15 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
-import { validationResult, ValidationChain } from 'express-validator';
+import { ValidationChain, validationResult } from 'express-validator';
 import { AppError } from './errorHandler';
 
-// 验证中间件
-export const validate = (req: Request, res: Response, next: NextFunction) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    const messages = errors.array().map(err => err.msg);
-    throw new AppError(messages.join(', '), 400);
-  }
-  next();
+export const validate = (validations: ValidationChain[]) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    // 执行所有验证
+    await Promise.all(validations.map(validation => validation.run(req)));
+
+    // 检查验证结果
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return next(new AppError('验证失败: ' + JSON.stringify(errors.array()), 400));
+    }
+
+    next();
+  };
 };
 
 // 分页验证规则

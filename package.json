@@ -1,6 +1,6 @@
 {
-  "name": "virtual-goods-api",
-  "version": "1.0.0",
+  "name": "virtual-goods-management",
+  "version": "0.6.4",
   "description": "Virtual Goods Management System API",
   "main": "dist/index.js",
   "scripts": {

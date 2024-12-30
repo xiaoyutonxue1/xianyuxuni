@@ -1,12 +1,11 @@
 import { Request } from 'express';
+import { User } from '@prisma/client';
 
 // 扩展Request类型，添加用户信息
 export interface AuthRequest extends Request {
-  user?: {
-    id: number;
-    username: string;
-    role: string;
-  };
+  user?: User;
+  file?: Express.Multer.File;
+  files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] };
 }
 
 // 分页参数接口
