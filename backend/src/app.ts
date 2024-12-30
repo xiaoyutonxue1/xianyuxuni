@@ -4,6 +4,7 @@ import morgan from 'morgan';
 import { errorHandler } from './middlewares/errorHandler';
 import authRoutes from './routes/auth.routes';
 import selectionsRoutes from './routes/selections.routes';
+import productsRoutes from './routes/products.routes';
 
 const app = express();
 
@@ -17,6 +18,7 @@ app.use(morgan('dev'));
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 app.use(`${API_PREFIX}/auth`, authRoutes);
 app.use(`${API_PREFIX}/selections`, selectionsRoutes);
+app.use(`${API_PREFIX}/products`, productsRoutes);
 
 // Error Handler
 app.use(errorHandler);

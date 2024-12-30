@@ -64,6 +64,7 @@ model Product {
   description String?
   price       Float
   status      String   @default("active")
+  specs       Json?
   selectionId Int
   createdBy   Int
   createdAt   DateTime @default(now())

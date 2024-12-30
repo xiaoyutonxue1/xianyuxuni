@@ -78,13 +78,31 @@ export const createSelection = async (
       throw new AppError('未认证', 401);
     }
 
+    // 确保data是JSON对象
+    let jsonData;
+    try {
+      jsonData = typeof data === 'string' ? JSON.parse(data) : data;
+    } catch (error) {
+      logger.error('Invalid data format:', error);
+      throw new AppError('数据格式无效', 400);
+    }
+
+    logger.info('Creating selection with data:', {
+      title,
+      description,
+      type,
+      source,
+      data: jsonData,
+      userId
+    });
+
     const selection = await prisma.selection.create({
       data: {
         title,
         description,
         type,
         source,
-        data,
+        data: jsonData,
         status: 'draft',
         createdBy: userId
       },
@@ -105,6 +123,12 @@ export const createSelection = async (
           }
         }
       }
+    }).catch((error: unknown) => {
+      logger.error('Database error:', error);
+      if (error instanceof Error) {
+        throw new AppError('数据库操作失败: ' + error.message, 500);
+      }
+      throw new AppError('数据库操作失败', 500);
     });
 
     logger.info(`Selection created: ${selection.id} by user ${userId}`);
@@ -113,8 +137,15 @@ export const createSelection = async (
       selection,
       '创建选品成功'
     ));
-  } catch (error) {
-    next(error);
+  } catch (error: unknown) {
+    logger.error('Error in createSelection:', error);
+    if (error instanceof AppError) {
+      next(error);
+    } else if (error instanceof Error) {
+      next(new AppError('服务器内部错误: ' + error.message, 500));
+    } else {
+      next(new AppError('服务器内部错误', 500));
+    }
   }
 };
 
@@ -182,8 +213,15 @@ export const updateSelection = async (
       selection,
       '更新选品成功'
     ));
-  } catch (error) {
-    next(error);
+  } catch (error: unknown) {
+    logger.error('Error in updateSelection:', error);
+    if (error instanceof AppError) {
+      next(error);
+    } else if (error instanceof Error) {
+      next(new AppError('服务器内部错误: ' + error.message, 500));
+    } else {
+      next(new AppError('服务器内部错误', 500));
+    }
   }
 };
 
@@ -226,7 +264,14 @@ export const deleteSelection = async (
       null,
       '删除选品成功'
     ));
-  } catch (error) {
-    next(error);
+  } catch (error: unknown) {
+    logger.error('Error in deleteSelection:', error);
+    if (error instanceof AppError) {
+      next(error);
+    } else if (error instanceof Error) {
+      next(new AppError('服务器内部错误: ' + error.message, 500));
+    } else {
+      next(new AppError('服务器内部错误', 500));
+    }
   }
 }; 
