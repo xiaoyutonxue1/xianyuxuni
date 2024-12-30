@@ -5,6 +5,7 @@ import { connectDB } from './config/database';
 import logger from './utils/logger';
 import { errorHandler } from './middlewares/errorHandler';
 import authRoutes from './routes/auth.routes';
+import selectionsRoutes from './routes/selections.routes';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -16,6 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // 路由
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/selections', selectionsRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {
