@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  password  String
+  email     String?
+  role      String   @default("user")
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联
+  refreshTokens RefreshToken[]
+  selections    Selection[]
+  products      Product[]
+  stores        Store[]
+  templates     Template[]
+  operationLogs OperationLog[]
+}
+
+// 刷新Token模型
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // 关联
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// 选品模型
+model Selection {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  status      String   @default("draft")
+  type        String
+  source      String
+  data        Json
+  createdBy   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  user     User      @relation(fields: [createdBy], references: [id])
+  products Product[]
+}
+
+// 商品模型
+model Product {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  price       Float
+  status      String   @default("active")
+  selectionId Int
+  createdBy   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  selection Selection @relation(fields: [selectionId], references: [id])
+  user      User      @relation(fields: [createdBy], references: [id])
+  stores    Store[]
+}
+
+// 店铺模型
+model Store {
+  id          Int      @id @default(autoincrement())
+  name        String
+  platform    String
+  status      String   @default("active")
+  config      Json
+  createdBy   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  user     User      @relation(fields: [createdBy], references: [id])
+  products Product[]
+}
+
+// 模板模型
+model Template {
+  id          Int      @id @default(autoincrement())
+  name        String
+  type        String
+  content     String
+  isDefault   Boolean  @default(false)
+  createdBy   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  user User @relation(fields: [createdBy], references: [id])
+}
+
+// 操作日志模型
+model OperationLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  action     String
+  targetType String
+  details    Json
+  createdAt  DateTime @default(now())
+
+  // 关联
+  user User @relation(fields: [userId], references: [id])
+} 
