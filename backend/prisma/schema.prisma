@@ -25,6 +25,7 @@ model User {
   stores        Store[]
   templates     Template[]
   operationLogs OperationLog[]
+  files         File[]
 }
 
 // 刷新Token模型
@@ -120,4 +121,25 @@ model OperationLog {
 
   // 关联
   user User @relation(fields: [userId], references: [id])
+}
+
+// 文件模型
+model File {
+  id           Int      @id @default(autoincrement())
+  filename     String
+  originalname String
+  mimetype     String
+  size         Int
+  path         String
+  type         String   @default("file")
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 关联
+  user   User @relation(fields: [userId], references: [id])
+  userId Int
+
+  @@index([userId])
+  @@index([type])
 } 

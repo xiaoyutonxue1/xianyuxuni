@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/uuid": "^10.0.0",
     "dotenv": "^16.4.5",
     "node-pg-migrate": "^7.8.0",
     "pg": "^8.11.3"
