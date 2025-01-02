@@ -1,0 +1,425 @@
+[33mcommit c69060d12a2d6a06c3f7090de143e085f15b5ecb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;33mtag: [m[1;33mv0.6.6[m[33m, [m[1;31morigin/master[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Thu Jan 2 01:10:04 2025 +0800
+
+    v0.6.6: 完成文件管理功能,包括单文件和多文件上传,文件列表获取,文件删除,类型验证等功能
+
+[33mcommit 3ebb3c89499d27110febb17a2bf19da5e865d6d5[m[33m ([m[1;33mtag: [m[1;33mv0.6.4[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Tue Dec 31 01:09:21 2024 +0800
+
+    chore: update version to v0.6.4
+
+[33mcommit e4daedf280e3bf4b28ef3eaee7f87957432a6f89[m[33m ([m[1;33mtag: [m[1;33mv0.6.3[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Tue Dec 31 00:27:08 2024 +0800
+
+    chore: update version to v0.6.3
+
+[33mcommit 107c685cbca16097c49de7a624833fb7d877cf09[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 30 23:41:04 2024 +0800
+
+    chore: update version to v0.6.2
+
+[33mcommit c9d5f61f03b0d3a69f0e9c833a075b41e4fb0d63[m[33m ([m[1;33mtag: [m[1;33mv0.6.1[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 30 22:48:20 2024 +0800
+
+    chore: update version to v0.6.1
+
+[33mcommit 1c91946df9aabd4c80417d5833a8bcb7ba5e1be1[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 30 20:03:15 2024 +0800
+
+    chore: update version to v0.6.0
+
+[33mcommit 81b1224cce0653a5f0742af81284fe50d742ef96[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 27 21:44:42 2024 +0800
+
+    Initial commit: Basic project setup
+
+[33mcommit 046763a937a2923ede0916bf6ee6b41230917868[m[33m ([m[1;33mtag: [m[1;33mv0.5.4[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 27 17:32:16 2024 +0800
+
+    chore: update project to v0.5.4 - 创建项目里程碑文档，制定开发规范和标准，完善数据库和API设计文档，优化代码规范，建立测试和部署规范
+
+[33mcommit ed5c9acb87fb3b83bbc014173e5b912171813b44[m[33m ([m[1;33mtag: [m[1;33mv0.5.3[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 27 13:56:44 2024 +0800
+
+    feat: update to version v0.5.3 - optimize watermark functionality
+
+[33mcommit a39d82061f61908578124afbc574300dcc624a8d[m[33m ([m[1;33mtag: [m[1;33mv0.5.2[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 27 02:22:00 2024 +0800
+
+    feat: update to version v0.5.2 - optimize watermark drag functionality
+
+[33mcommit 5f3215b892df8c001d3a0913c6ea6fbefb8fc9ea[m[33m ([m[1;33mtag: [m[1;33mv0.5.1[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Thu Dec 26 18:07:01 2024 +0800
+
+    feat: update to version v0.5.1 - optimize smart watermark functionality
+
+[33mcommit 1f1df51574dda5e49513c03d9532fb1ba80a5468[m[33m ([m[1;33mtag: [m[1;33mv0.4.9[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Thu Dec 26 02:15:51 2024 +0800
+
+    feat: update to version v0.4.9 - add watermark functionality
+
+[33mcommit 1385716c493caa2f911bddc4ce95b7e68f2701f2[m[33m ([m[1;33mtag: [m[1;33mv0.4.8[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Thu Dec 26 01:06:10 2024 +0800
+
+    feat: update to version v0.4.8 - add drag and drop feature for images
+
+[33mcommit 74c3c5f96c4dd20e22f54088864c1c40f7e358ea[m[33m ([m[1;33mtag: [m[1;33mv0.4.7[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Thu Dec 26 00:33:47 2024 +0800
+
+    feat: update to version v0.4.7 - optimize image upload component styles
+
+[33mcommit 5beb30527ed858cafd7d2607e20fa71e637851ab[m[33m ([m[1;33mtag: [m[1;33mv0.4.6[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 25 22:29:21 2024 +0800
+
+    chore: update version to v0.4.6
+
+[33mcommit ab65f6ea92fedefb16be87797169676710010735[m[33m ([m[1;33mtag: [m[1;33mv0.4.5[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 25 21:17:42 2024 +0800
+
+    chore: update version to v0.4.5
+
+[33mcommit fd700017e64ce2db4b04851251764056922893ac[m[33m ([m[1;33mtag: [m[1;33mv0.4.4[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 25 17:58:40 2024 +0800
+
+    chore: update version to v0.4.4
+
+[33mcommit 80e3b0fd57093e282dfbb8f17a0581b9e597c3dc[m[33m ([m[1;33mtag: [m[1;33mv0.4.3[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 25 16:41:14 2024 +0800
+
+    chore: update version to v0.4.3
+
+[33mcommit 68aa5a3be033c97ff07b22285ed46b79e1e35fb4[m[33m ([m[1;33mtag: [m[1;33mv0.4.2[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 25 11:04:40 2024 +0800
+
+    chore: update version to v0.4.2
+
+[33mcommit 595286259197984fcfc950cf0840474d2bd98fb5[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 25 00:06:05 2024 +0800
+
+    chore: update version to v0.4.1
+
+[33mcommit edb146df5fef51f58daddcbdf73de98d3cd85a73[m[33m ([m[1;33mtag: [m[1;33mv0.4.1[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 25 00:04:02 2024 +0800
+
+    chore: update version to v0.4.1
+
+[33mcommit edf2c637faa0b81a774090aaf458c59eba366539[m[33m ([m[1;33mtag: [m[1;33mv0.4.0[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Tue Dec 24 00:31:30 2024 +0800
+
+    chore: update version to v0.4.0
+
+[33mcommit 3a7d3a150aed28d7764135695d4b704efc625b61[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 23 23:29:40 2024 +0800
+
+    refactor: move frontend files to frontend directory and update version to v0.3.9
+
+[33mcommit 1b7e39b99d987d1f52fa565dc26645063ec1d48f[m[33m ([m[1;33mtag: [m[1;33mv0.3.9[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 23 23:26:47 2024 +0800
+
+    chore: update version to v0.3.9
+
+[33mcommit 43bf57657f3c70e9bccb235718c9dcc5e9adc52d[m[33m ([m[1;33mtag: [m[1;33mv0.3.8[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 23 16:04:16 2024 +0800
+
+    chore: update project version to v0.3.8
+
+[33mcommit 36d00c7080eb4934d57dc18316b117cb7231c04d[m[33m ([m[1;33mtag: [m[1;33mv0.3.7[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 23 12:40:43 2024 +0800
+
+    chore: update version to v0.3.7
+
+[33mcommit 8c755812a0262f73dd7d851881a134b1ffb71d83[m[33m ([m[1;33mtag: [m[1;33mv0.3.6[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 23 00:30:19 2024 +0800
+
+    chore: update project version to v0.3.6
+
+[33mcommit 605042f8c54e61cc98853f138573d0b6597d6b74[m[33m ([m[1;33mtag: [m[1;33mv0.3.5[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sun Dec 22 23:51:06 2024 +0800
+
+    chore: update project version to v0.3.5
+
+[33mcommit 8ef963ef4efaaa64cb52baf636bcfb2bb026c7de[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sun Dec 22 03:26:08 2024 +0800
+
+    更新到v0.3.4版本
+
+[33mcommit ae791a1a6ec1535596632714df16285406570ebd[m[33m ([m[1;33mtag: [m[1;33mv0.3.4[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sun Dec 22 03:20:44 2024 +0800
+
+    feat: update project to v0.3.4
+
+[33mcommit ca7db1065dbbf784919cb4b510db1741010ba8a3[m[33m ([m[1;33mtag: [m[1;33mv0.3.3[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 22:55:32 2024 +0800
+
+    chore: update to version 0.3.3
+
+[33mcommit eaa74cbea47fe4d0c5f2510c0033db58547bcee2[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 22:21:09 2024 +0800
+
+    chore: update to version 0.3.2
+
+[33mcommit 0a4f2e1f7d50aba4805b045402a320eff86e31da[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 21:55:03 2024 +0800
+
+    v0.3.2: 优化商品管理功能和用户体验
+
+[33mcommit 5ada6b3dde5f77520b5dc374fca1ca7b37e32a4d[m[33m ([m[1;33mtag: [m[1;33mv0.3.2[m[33m, [m[1;33mtag: [m[1;33mv0.3.1[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 16:50:24 2024 +0800
+
+    chore: update version to v0.3.1
+
+[33mcommit 82896211810d2d9a32cdfa41f392e8d9013cabed[m[33m ([m[1;33mtag: [m[1;33mv0.3.0[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 16:20:12 2024 +0800
+
+    chore: update version to v0.3.0
+
+[33mcommit 39527c5d36716e069c2fc52f75a4b305443b145a[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 15:19:47 2024 +0800
+
+    docs: restore version history in README.md
+
+[33mcommit 38eba30dcb92fa3166731d2a25c4c0103a155275[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 15:17:34 2024 +0800
+
+    docs: update version to v0.2.9
+
+[33mcommit 4837f098bba7c3ce5d612e41d4cbbb5c502d2497[m[33m ([m[1;33mtag: [m[1;33mv0.2.9[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 15:12:10 2024 +0800
+
+    chore: update version to v0.2.9
+
+[33mcommit 9a6256908a7e69da58858f68e94b0ebcc4d6ebee[m[33m ([m[1;33mtag: [m[1;33mv0.2.8[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 14:36:12 2024 +0800
+
+    chore: update version to v0.2.8
+
+[33mcommit 031f9daf71b9a66d2adb90239731b2ed07ff8800[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 03:40:24 2024 +0800
+
+    chore: update package.json version to v0.2.7
+
+[33mcommit e1fc11e6336a7b9175ee2d5a6e89135600e86728[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 03:38:04 2024 +0800
+
+    chore: remove temporary files
+
+[33mcommit 7722299113d34fdcbdbf1d2e5bf0767052771571[m[33m ([m[1;33mtag: [m[1;33mv0.2.7[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 03:29:44 2024 +0800
+
+    chore: update version to v0.2.7
+
+[33mcommit 0f4daced1cee02a66193226ba4bd5ac75da2f908[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 03:27:38 2024 +0800
+
+    docs: update version to v2.7.0 and add header image documentation
+
+[33mcommit a3d7581059d9207d268dfe33dbded029f4ae328e[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 21 03:23:49 2024 +0800
+
+    chore: update version to v2.7.0
+
+[33mcommit 4a60d0f884314e361c25c96e81edc51798c64a23[m[33m ([m[1;33mtag: [m[1;33mv0.2.6[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Mon Dec 16 01:08:03 2024 +0800
+
+    v0.2.6: 优化商品完整度功能和图片上传功能
+
+[33mcommit a195a2ed69f79add28437fc9a3da875992265ac2[m[33m ([m[1;33mtag: [m[1;33mv0.2.5[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sun Dec 15 22:43:25 2024 +0800
+
+    v0.2.5: 优化选品分配功能和筛选功能
+
+[33mcommit 42c19dafa2667a82f73b238f275cbb075608ade0[m[33m ([m[1;33mtag: [m[1;33mv0.2.4[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sun Dec 15 01:41:50 2024 +0800
+
+    v0.2.4: 优化选品管理流程，区分新建选品页和选品管理页的状态显示
+
+[33mcommit c453176c5d1a7eda5b272c9b400f29833e00ebb3[m[33m ([m[1;33mtag: [m[1;33mv0.2.3[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sun Dec 15 00:43:17 2024 +0800
+
+    v0.2.3: 修改BUG，优化数据逻辑以及体验
+
+[33mcommit 3e5cc7a19ff78c69b770bf0a3e85391a31209ee7[m[33m ([m[1;33mtag: [m[1;33mv0.2.2[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 14 23:37:27 2024 +0800
+
+    v0.2.2: 优化选品管理功能和数据同步
+
+[33mcommit 3881e7a444e5ff144dacce80b41b657909ae45f5[m[33m ([m[1;33mtag: [m[1;33mv0.2.1[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 14 17:49:46 2024 +0800
+
+    v0.2.1: 优化商品分类管理和选品分配功能
+
+[33mcommit 29bc0c2129652796c471d9ba0a9cb039ce83eaa7[m[33m ([m[1;33mtag: [m[1;33mv0.2.0[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 14 17:10:00 2024 +0800
+
+    v0.2.0: 优化选品管理流程，改进数据存储机制
+
+[33mcommit 0a3e69f91c9ce1cc4af9a7e9e885a17f61f4ee96[m[33m ([m[1;33mtag: [m[1;33mv0.1.9[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Sat Dec 14 15:14:05 2024 +0800
+
+    v0.1.9: 优化店铺设置和模板管理功能
+
+[33mcommit 5b55147a667addad96b44c98bd04894f350518f4[m[33m ([m[1;33mtag: [m[1;33mv0.1.8[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 21:25:58 2024 +0800
+
+    v0.1.8: 优化商品发布功能,支持店铺组和多店铺批量发布,完善分配状态显示和筛选
+
+[33mcommit 297b5f15901395d5a76d362ee15337609cce0ae8[m[33m ([m[1;33mtag: [m[1;33mv0.1.7[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 20:26:09 2024 +0800
+
+    v0.1.7: 优化爬虫模式和筛选功能
+
+[33mcommit 336f91bbdee963d4c3df6d5ba6efb521abb77d82[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 18:31:26 2024 +0800
+
+    docs: 添加数据库业务逻辑关系说明
+
+[33mcommit 1afc06840d0e71e0ad0dda7c537b539a360ae827[m[33m ([m[1;33mtag: [m[1;33mv0.1.6[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 18:17:17 2024 +0800
+
+    v0.1.6 版本更新：完善数据库设计和多规格商品逻辑
+
+[33mcommit 450846120174a6d0ec045c89f5bc7019247676cc[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 18:06:01 2024 +0800
+
+    v0.1.6 完善数据库设计文档和README更新
+
+[33mcommit fe6e55debc2fed656691d8ff9c6fe38302ab9a84[m[33m ([m[1;33mtag: [m[1;33mv0.1.5[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 16:19:15 2024 +0800
+
+    feat: update to v0.1.5 - Update product types and form implementation
+
+[33mcommit c304fedc8ab2809fb6b7bfdec70fe5eaa9649d96[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 16:18:43 2024 +0800
+
+    feat: update to v0.1.5 - Update product types and form implementation
+
+[33mcommit a906f9a0b08ce35e81c4790c02cb0cc2e12cb08a[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 16:15:49 2024 +0800
+
+    docs: update version to v0.1.5
+
+[33mcommit 4989a2125007623b9d389db7569189f8c8c1d7c5[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 13:23:28 2024 +0800
+
+    docs: update version dates in README.md to actual release dates
+
+[33mcommit e3acbd624a3d1a210c92dd7692804d08ddc37d65[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 13:04:26 2024 +0800
+
+    docs: update README.md with comprehensive documentation
+
+[33mcommit 96e5f5fe3348e9d37becbc9e54324a6da4bfd334[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 13:03:23 2024 +0800
+
+    docs: enhance README.md with detailed features and version history
+
+[33mcommit 5c58ff518d37833692ce2fea308ec609e5700b52[m[33m ([m[1;33mtag: [m[1;33mv0.1.4[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 12:18:41 2024 +0800
+
+    docs: update README.md with version history and project structure
+
+[33mcommit ab3b43d29c2bcd21a0422f00ebfc56324e32ab99[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 12:13:34 2024 +0800
+
+    docs: update README and version for v0.1.3
+
+[33mcommit 327920751e66ce40076c8a93e3f58ad7956e147e[m[33m ([m[1;33mtag: [m[1;33mv0.1.3[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 12:09:32 2024 +0800
+
+    chore: update version to v0.1.3 and refactor navigation
+
+[33mcommit b6a09f8ca30efe51b2286aa91587c55eef1d2b43[m[33m ([m[1;33mtag: [m[1;33mv0.1.2[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Fri Dec 13 11:40:55 2024 +0800
+
+    chore: update version to v0.1.2
+
+[33mcommit 1def90d62c0f01ffd056b1dd6cf2756696142774[m[33m ([m[1;33mtag: [m[1;33mv0.1.1[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Thu Dec 12 19:37:12 2024 +0800
+
+    chore: bump version to 0.1.1
+    
+    - Add template management module
+    - Add shipping settings module
+    - Improve product management features
+    - Enhance dashboard visualization
+    - Optimize performance and fix bugs
+
+[33mcommit 42f81b3732e98ac968bbe9c208b027443566c866[m[33m ([m[1;33mtag: [m[1;33mv0.1.0[m[33m)[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 11 23:15:31 2024 +0800
+
+    chore: bump version to 0.1.0
+
+[33mcommit ac9d7db03d84e5f7f9b4c2ef43854ce6bcee0793[m
+Author: xiaoyutonxue1 <2456198610@qq.com>
+Date:   Wed Dec 11 16:10:10 2024 +0800
+
+    v0.0.1: 初始化项目，完成商品管理模块基础功能
