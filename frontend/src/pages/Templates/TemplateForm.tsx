@@ -1,92 +1,67 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Form, Input, Select, Button, Card, Switch } from 'antd';
-import { useStore } from '../../store';
-import { Template } from '../../types';
+import { Form, Input, Button, Space, Modal } from 'antd';
 import TemplateEditor from './TemplateEditor';
+import type { Template, TemplateFormValues } from '../../types/template';
 
-const { Option } = Select;
+export interface TemplateFormProps {
+  initialValues?: Template;
+  onSubmit: (values: TemplateFormValues) => Promise<boolean>;
+  onCancel: () => void;
+}
 
-const TemplateForm = () => {
-  const navigate = useNavigate();
-  const { id } = useParams();
+const TemplateForm: React.FC<TemplateFormProps> = ({
+  initialValues,
+  onSubmit,
+  onCancel
+}) => {
   const [form] = Form.useForm();
-  
-  const { templates, stores, addTemplate, updateTemplate } = useStore();
-  const template = id ? templates.find(t => t.id === id) : undefined;
 
-  const onFinish = (values: Partial<Template>) => {
-    if (id) {
-      updateTemplate(id, values);
-    } else {
-      addTemplate({
-        ...values,
-        id: Date.now().toString(),
-      } as Template);
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      onSubmit(values);
+    } catch (error) {
+      console.error('表单验证失败:', error);
     }
-    navigate('/templates');
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <Card title={id ? 'Edit Template' : 'New Template'}>
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={template}
-          onFinish={onFinish}
-        >
-          <Form.Item
-            name="name"
-            label="Template Name"
-            rules={[{ required: true }]}
-          >
-            <Input />
-          </Form.Item>
+    <Form
+      form={form}
+      layout="vertical"
+      initialValues={initialValues}
+    >
+      <Form.Item
+        label="模板名称"
+        name="name"
+        rules={[{ required: true, message: '请输入模板名称' }]}
+      >
+        <Input placeholder="请输入模板名称" />
+      </Form.Item>
 
-          <Form.Item
-            name="storeId"
-            label="Store"
-            rules={[{ required: true }]}
-          >
-            <Select>
-              {stores.map(store => (
-                <Option key={store.id} value={store.id}>
-                  {store.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
+      <Form.Item
+        label="模板内容"
+        name="content"
+        rules={[{ required: true, message: '请输入模板内容' }]}
+      >
+        <TemplateEditor 
+          template={initialValues as Template}
+          onSave={(template) => {
+            form.setFieldsValue({ content: template.content });
+          }}
+          onCancel={() => {}}
+        />
+      </Form.Item>
 
-          <Form.Item
-            name="content"
-            label="Template Content"
-            rules={[{ required: true }]}
-          >
-            <TemplateEditor />
-          </Form.Item>
-
-          <Form.Item
-            name="isDefault"
-            label="Set as Default Template"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-
-          <Form.Item className="mb-0">
-            <Space>
-              <Button type="primary" htmlType="submit">
-                {id ? 'Update' : 'Create'} Template
-              </Button>
-              <Button onClick={() => navigate('/templates')}>
-                Cancel
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Card>
-    </div>
+      <Form.Item>
+        <Space>
+          <Button type="primary" onClick={handleSubmit}>
+            保存
+          </Button>
+          <Button onClick={onCancel}>取消</Button>
+        </Space>
+      </Form.Item>
+    </Form>
   );
 };
 

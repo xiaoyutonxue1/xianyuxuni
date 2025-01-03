@@ -119,6 +119,7 @@ export interface Product {
   coverImage?: string;
   deliveryMethod?: DeliveryMethod;  // 发货方式
   deliveryInfo?: string;    // 发货信息
+  completeness?: number;    // 商品完整度
   commonImages?: Array<{
     id: string;
     url: string;
@@ -198,4 +199,69 @@ export interface UpdateProductRequest extends Partial<CreateSelectionRequest> {
 
 export interface ProductFilterProps {
   onFilter: (values: any) => void;
+}
+
+// 创建选品请求
+export interface CreateProductRequest {
+  name: string;
+  category: ProductCategory;
+  description?: string;
+  price: number;
+  stock: number;
+  method: 'manual' | 'crawler';
+  hasSpecs: boolean;
+  specs?: Array<{
+    name: string;
+    price: number;
+    stock: number;
+    deliveryMethod: DeliveryMethod;
+    deliveryInfo: string;
+  }>;
+  deliveryMethod?: DeliveryMethod;
+  deliveryInfo?: string;
+  commonImages?: Array<{
+    id: string;
+    url: string;
+    thumbUrl?: string;
+    type: 'common';
+    sort: number;
+    createdAt: string;
+    size?: number;
+  }>;
+}
+
+// 商品列表项类型
+export interface ProductListingItem {
+  id: number;
+  name: string;
+  store: string;
+  category: string;
+  status: 'draft' | 'pending' | 'published' | 'failed' | 'offline';
+  price: string;
+  originalPrice: string;
+  stock: number;
+  sales: number;
+  createdAt: string;
+  updatedAt: string;
+  lastUpdateBy: string;
+  specs?: Array<{
+    id: string;
+    name: string;
+    price: string;
+    originalPrice: string;
+    stock: number;
+    deliveryMethod: string;
+  }>;
+  headImage?: string;
+  publicImages?: string[];
+  distributedTo?: string[];
+  description?: string;
+  keywords?: string[];
+  remark?: string;
+  method: 'manual' | 'crawler';
+  crawlerStatus?: 'pending' | 'processing' | 'processed' | 'failed';
+  source?: string;
+  sourceUrl?: string;
+  processStep?: number;
+  failReason?: string;
 } 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, DatePicker, Image } from 'antd';
+import { Card, Table, Button, Input, Space, message, Tag, Tooltip, Modal, Dropdown, Progress, DatePicker, Image, Form, Select } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { 
   DeleteOutlined, 
@@ -29,12 +29,12 @@ import ProductFilter from './components/ProductFilter';
 import { formatDate } from '../../utils/date';
 import { deliveryMethods, deliveryMethodMap } from '../../utils/constants';
 import StatusTag from './components/StatusTag';
+import type { RangePickerProps } from 'antd/es/date-picker';
+import type { RangeValue } from '../../types/date';
 
 const { Search } = Input;
 const { confirm } = Modal;
 const { RangePicker } = DatePicker;
-
-type RangeValue<T> = [T | null, T | null] | null;
 
 // 商品状态配置
 const statusConfig: Record<ProductSourceStatus, { text: string; color: string; icon: React.ReactNode }> = {
@@ -139,8 +139,8 @@ const ProductLibrary: React.FC = () => {
         // 如果是多规格商品
         if (item?.hasSpecs && item?.specs) {
           // 只要有一个规格的发货方式匹配即可
-          return item.specs.some((spec: { deliveryMethod: string }) => 
-            spec.deliveryMethod === filterValues.deliveryMethod
+          return item.specs.some(spec => 
+            spec.deliveryMethod && spec.deliveryMethod === filterValues.deliveryMethod
           );
         }
         // 单规格商品
@@ -471,13 +471,25 @@ const ProductLibrary: React.FC = () => {
   ];
 
   // 处理表格变化
-  const handleTableChange = (
-    pagination: any,
-    filters: any,
-    sorter: any,
-    { field, index }: { field: string; index: number }
+  const handleTableChange: TableProps<ProductSelection>['onChange'] = (
+    pagination,
+    filters,
+    sorter,
+    extra
   ) => {
-    console.log('Table changed:', { pagination, filters, sorter });
+    // 处理排序
+    if (sorter && 'field' in sorter) {
+      const { field, order } = sorter as { field: string; order: 'ascend' | 'descend' };
+      const sortedData = [...filteredData].sort((a, b) => {
+        const aValue = a[field as keyof ProductSelection];
+        const bValue = b[field as keyof ProductSelection];
+        if (order === 'ascend') {
+          return aValue > bValue ? 1 : -1;
+        }
+        return aValue < bValue ? 1 : -1;
+      });
+      setFilteredData(sortedData);
+    }
   };
 
   // 处理筛选

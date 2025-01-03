@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Table, Button, Card, Space } from 'antd';
+import { Table, Button, Card, Space, Modal } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { useStore } from '../../store';
 

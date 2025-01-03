@@ -21,9 +21,12 @@ export interface StoreAccount {
     rotation?: number;
     mode?: 'single' | 'tile';
     color?: string;
+    fontFamily?: string;
+    isSmartMode?: boolean;
   };
   features: {
     templates: ProductTemplate[];
+    priceAdjustment?: number;
   };
 }
 
@@ -64,6 +67,18 @@ interface SettingsState {
   storeAccounts: StoreAccount[];
   storeGroups: StoreGroup[];
   productSettings: ProductSettings;
+  addStoreAccount: (account: StoreAccount) => void;
+  removeStoreAccount: (id: string) => void;
+  updateStoreAccount: (id: string, account: Partial<StoreAccount>) => void;
+  updateProductSettings: (settings: Partial<ProductSettings>) => void;
+  addCategory: (category: string) => void;
+  removeCategory: (category: string) => void;
+  addStoreGroup: (group: StoreGroup) => void;
+  updateStoreGroup: (id: string, group: Partial<StoreGroup>) => void;
+  removeStoreGroup: (id: string) => void;
+}
+
+interface SettingsActions {
   addStoreAccount: (account: StoreAccount) => void;
   removeStoreAccount: (id: string) => void;
   updateStoreAccount: (id: string, account: Partial<StoreAccount>) => void;
@@ -199,67 +214,105 @@ export const useSettingsStore = create(
         deliveryMethods: defaultDeliveryMethods,
         defaultSpecName: '发货网盘',
       },
+
+      // 实现所有必需的方法
+      addStoreAccount: (account: StoreAccount) => {
+        set(state => ({
+          storeAccounts: [...state.storeAccounts, account]
+        }));
+      },
+
+      removeStoreAccount: (id: string) => {
+        set(state => ({
+          storeAccounts: state.storeAccounts.filter(account => account.id !== id)
+        }));
+      },
+
       updateStoreAccount: (id: string, data: Partial<StoreAccount>) => {
-        try {
-          const storeAccounts = get().storeAccounts;
-          const index = storeAccounts.findIndex(account => account.id === id);
-          
-          if (index === -1) {
-            console.warn('Store account not found:', id);
-            return false;
-          }
+        const state = get();
+        const index = state.storeAccounts.findIndex(account => account.id === id);
+        if (index === -1) return;
 
-          // 深度合并水印设置
-          const currentAccount = storeAccounts[index];
-          const updatedAccount = {
-            ...currentAccount,
-            ...data,
-            watermarkSettings: {
-              ...currentAccount.watermarkSettings,
-              ...(data.watermarkSettings || {}),
-              lastUpdated: new Date().toISOString()
-            }
-          };
-          
-          const updatedAccounts = [
-            ...storeAccounts.slice(0, index),
+        const updatedAccount = {
+          ...state.storeAccounts[index],
+          ...data,
+          watermarkSettings: {
+            ...state.storeAccounts[index].watermarkSettings,
+            ...(data.watermarkSettings || {})
+          }
+        };
+
+        set(state => ({
+          storeAccounts: [
+            ...state.storeAccounts.slice(0, index),
             updatedAccount,
-            ...storeAccounts.slice(index + 1)
-          ];
-          
-          // 先更新状态
-          set({ storeAccounts: updatedAccounts });
-          
-          // 再保存到localStorage
-          try {
-            const currentState = get();
-            const stateToSave = {
-              storeAccounts: updatedAccounts,
-              productSettings: currentState.productSettings,
-              storeGroups: currentState.storeGroups
-            };
+            ...state.storeAccounts.slice(index + 1)
+          ]
+        }));
+      },
 
-            console.log('Saving state:', stateToSave);
-
-            return true;
-          } catch (e) {
-            console.error('Failed to save settings:', e);
-            return false;
+      updateProductSettings: (settings: Partial<ProductSettings>) => {
+        set(state => ({
+          productSettings: {
+            ...state.productSettings,
+            ...settings
           }
-        } catch (error) {
-          console.error('Failed to update store account:', error);
-          return false;
-        }
+        }));
+      },
+
+      addCategory: (category: string) => {
+        set(state => ({
+          productSettings: {
+            ...state.productSettings,
+            categories: [...state.productSettings.categories, category]
+          }
+        }));
+      },
+
+      removeCategory: (category: string) => {
+        set(state => ({
+          productSettings: {
+            ...state.productSettings,
+            categories: state.productSettings.categories.filter(c => c !== category)
+          }
+        }));
+      },
+
+      addStoreGroup: (group: StoreGroup) => {
+        set(state => ({
+          storeGroups: [...state.storeGroups, group]
+        }));
+      },
+
+      updateStoreGroup: (id: string, data: Partial<StoreGroup>) => {
+        set(state => {
+          const index = state.storeGroups.findIndex(group => group.id === id);
+          if (index === -1) return state;
+
+          const updatedGroup = {
+            ...state.storeGroups[index],
+            ...data
+          };
+
+          return {
+            storeGroups: [
+              ...state.storeGroups.slice(0, index),
+              updatedGroup,
+              ...state.storeGroups.slice(index + 1)
+            ]
+          };
+        });
+      },
+
+      removeStoreGroup: (id: string) => {
+        set(state => ({
+          storeGroups: state.storeGroups.filter(group => group.id !== id)
+        }));
       }
     }),
     {
       name: 'settings-storage',
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        storeAccounts: state.storeAccounts,
-        productSettings: state.productSettings,
-        storeGroups: state.storeGroups
-      })
+      storage: createJSONStorage(() => localStorage)
     }
   )
 );

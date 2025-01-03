@@ -1,76 +1,71 @@
 import React, { useState } from 'react';
-import { Modal, message } from 'antd';
+import { Card, Button, message } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import TemplateList from './TemplateList';
-import TemplateEditor from './TemplateEditor';
-import type { Template } from '../../types/template';
+import TemplateForm from './TemplateForm';
+import type { Template, TemplateFormValues } from '../../types/template';
+
+interface TemplateListProps {
+  templates: Template[];
+  loading: boolean;
+  onEdit: (template?: Template) => void;
+}
 
 const Templates: React.FC = () => {
-  const [isEditorVisible, setIsEditorVisible] = useState(false);
-  const [currentTemplate, setCurrentTemplate] = useState<Template | undefined>();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<Template | undefined>();
 
-  const handleEdit = (template?: Template) => {
-    setCurrentTemplate(template);
-    setIsEditorVisible(true);
-  };
-
-  const handleSave = async (template: Template) => {
+  const handleCreateTemplate = async (values: TemplateFormValues) => {
     try {
-      setLoading(true);
-      if (currentTemplate) {
-        // 更新模板
-        const updatedTemplate = {
-          ...template,
-          updatedAt: new Date().toISOString()
-        };
-        setTemplates(templates.map(t => 
-          t.id === template.id ? updatedTemplate : t
-        ));
-        message.success('模板更新成功');
-      } else {
-        // 新增模板
-        const newTemplate = {
-          ...template,
-          id: Date.now().toString(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        setTemplates([newTemplate, ...templates]);
-        message.success('模板添加成功');
-      }
-      setIsEditorVisible(false);
-      setCurrentTemplate(undefined);
+      const newTemplate: Template = {
+        id: Date.now(), // 临时ID，实际应该由后端生成
+        name: values.name,
+        content: values.content,
+        type: values.type,
+        storeId: values.storeId,
+        variables: values.variables,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      setTemplates([newTemplate, ...templates]);
+      message.success('创建成功');
+      return true;
     } catch (error) {
-      message.error('操作失败');
-    } finally {
-      setLoading(false);
+      message.error('创建失败');
+      return false;
     }
   };
 
   return (
-    <div className="space-y-4">
-      <TemplateList 
-        templates={templates}
-        loading={loading}
-        onEdit={handleEdit}
-      />
-
-      <Modal
-        title={currentTemplate ? '编辑模板' : '新增模板'}
-        open={isEditorVisible}
-        onCancel={() => setIsEditorVisible(false)}
-        footer={null}
-        width={1200}
-        destroyOnClose
-        confirmLoading={loading}
+    <div>
+      <Card
+        title="模板管理"
+        extra={
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setEditingTemplate(undefined)}
+          >
+            创建模板
+          </Button>
+        }
       >
-        <TemplateEditor
-          template={currentTemplate}
-          onSave={handleSave}
-          onCancel={() => setIsEditorVisible(false)}
+        <TemplateList
+          templates={templates}
+          loading={loading}
+          onEdit={setEditingTemplate}
         />
-      </Modal>
+      </Card>
+
+      {editingTemplate !== undefined && (
+        <TemplateForm
+          initialValues={editingTemplate}
+          onSubmit={handleCreateTemplate}
+          onCancel={() => setEditingTemplate(undefined)}
+        />
+      )}
     </div>
   );
 };

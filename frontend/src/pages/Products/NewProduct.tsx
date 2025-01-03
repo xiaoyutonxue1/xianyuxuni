@@ -4,6 +4,7 @@ import { message, Button } from 'antd';
 import CreateProductForm from './CreateProductForm';
 import type { CreateProductRequest } from '../../types/product';
 import useSelectionStore from '../../store/selectionStore';
+import type { ProductSelection, ProductSelectionStatus } from '../../types/product';
 
 const NewProduct: React.FC = () => {
   const navigate = useNavigate();
@@ -11,33 +12,26 @@ const NewProduct: React.FC = () => {
 
   const handleSubmit = async (values: CreateProductRequest) => {
     try {
-      // 创建新的选品记录
-      const newSelection = {
+      const newSelection: Partial<ProductSelection> & { id: string } = {
         id: Date.now().toString(),
         name: values.name,
         category: values.category,
         price: values.price,
         stock: values.stock,
-        status: 'pending',
+        status: 'pending' as ProductSelectionStatus,
         createdAt: new Date().toISOString(),
         description: values.description,
-        source: values.method,
+        source: 'manual',
         hasSpecs: values.hasSpecs,
-        saleInfo: values.hasSpecs ? undefined : {
-          price: values.price,
-          stock: values.stock,
-          deliveryMethod: values.deliveryMethod,
-          deliveryInfo: values.deliveryInfo,
-          originalPrice: values.price
-        },
-        specs: values.hasSpecs ? values.specs : undefined,
+        specs: values.specs,
+        deliveryMethod: values.deliveryMethod,
+        deliveryInfo: values.deliveryInfo,
         lastUpdated: new Date().toISOString()
       };
 
-      // 添加到选品库
       addSelection(newSelection);
-      message.success('选品创建成功');
-      navigate('/selection');
+      message.success('创建成功');
+      navigate('/products');
     } catch (error) {
       message.error('创建失败');
     }

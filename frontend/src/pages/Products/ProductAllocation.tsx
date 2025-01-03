@@ -2,18 +2,64 @@ import React, { useState, useEffect } from 'react';
 import { Card, Table, Button, Input, Space, message, Tag, Modal, Form, Alert, Select, Dropdown, DatePicker } from 'antd';
 import { ShopOutlined, DownOutlined, DeleteOutlined, ExportOutlined, CalendarOutlined } from '@ant-design/icons';
 import type { ProductSelection, ProductCategory, Product } from '../../types/product';
+import type { StoreAccount } from '../../types/store';
 import useSettingsStore from '../../store/settingsStore';
 import useProductStore from '../../store/productStore';
 import useSelectionStore from '../../store/selectionStore';
 import type { ColumnsType } from 'antd/es/table/interface';
 import type { RangePickerProps } from 'antd/es/date-picker';
+import type { RangeValue } from '../../types/date';
 import dayjs, { Dayjs } from 'dayjs';
 import { replaceTemplate } from '../../utils/template';
 
 const { Search } = Input;
 const { RangePicker } = DatePicker;
 
-type RangeValue<T> = [T | null, T | null] | null;
+interface Template {
+  id: string;
+  title: string;
+  description: string;
+  isDefault?: boolean;
+}
+
+// 获取选品已分配的店铺ID列表
+const getDistributedStoreIds = (selectionId: React.Key, products: Product[]): string[] => {
+  return products
+    .filter(p => p.selectionId === String(selectionId))
+    .map(p => p.storeId);
+};
+
+// 创建新商品
+const createProduct = (
+  selection: ProductSelection, 
+  storeId: string, 
+  defaultTemplate: Template
+): Product => {
+  if (!selection.category) {
+    throw new Error('商品分类不能为空');
+  }
+
+  return {
+    ...selection,
+    id: `${selection.id}-${storeId}`,
+    selectionId: selection.id,
+    storeId: String(storeId),
+    category: selection.category as ProductCategory,
+    description: selection.description || selection.name,
+    templateId: defaultTemplate.id,
+    status: 'draft',
+    distributedAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString(),
+    distributedTitle: replaceTemplate(defaultTemplate.title, {
+      title: selection.name,
+      deliveryMethod: selection.deliveryMethod || ''
+    }),
+    distributedContent: replaceTemplate(defaultTemplate.description, {
+      description: selection.description || selection.name,
+      deliveryMethod: selection.deliveryMethod || ''
+    })
+  } as Product;
+};
 
 const ProductAllocation: React.FC = () => {
   const [isLoading] = useState(false);
@@ -127,7 +173,7 @@ const ProductAllocation: React.FC = () => {
     // 店铺筛选
     if (filterValues.storeId) {
       filteredData = filteredData.filter(selection => {
-        const distributedStoreIds = getDistributedStoreIds(selection.id);
+        const distributedStoreIds = getDistributedStoreIds(selection.id, products);
         return distributedStoreIds.includes(filterValues.storeId);
       });
     }
@@ -142,41 +188,6 @@ const ProductAllocation: React.FC = () => {
     }
 
     return filteredData;
-  };
-
-  // 获取选品已分配的店铺ID列表
-  const getDistributedStoreIds = (selectionId: string) => {
-    return products
-      .filter(p => p.selectionId === selectionId)
-      .map(p => p.storeId);
-  };
-
-  // 创建新商品
-  const createProduct = (selection: ProductSelection, storeId: string, defaultTemplate: any): Product => {
-    if (!selection.category) {
-      throw new Error('商品分类不能为空');
-    }
-
-    return {
-      ...selection,
-      id: `${selection.id}-${storeId}`,
-      selectionId: selection.id,
-      storeId: String(storeId),
-      category: selection.category as ProductCategory,
-      description: selection.description || selection.name,
-      templateId: defaultTemplate.id,
-      status: 'draft',
-      distributedAt: new Date().toISOString(),
-      lastUpdated: new Date().toISOString(),
-      distributedTitle: replaceTemplate(defaultTemplate.title, {
-        title: selection.name,
-        deliveryMethod: selection.deliveryMethod || ''
-      }),
-      distributedContent: replaceTemplate(defaultTemplate.description, {
-        description: selection.description || selection.name,
-        deliveryMethod: selection.deliveryMethod || ''
-      })
-    } as Product;
   };
 
   // 处理分配
@@ -210,7 +221,7 @@ const ProductAllocation: React.FC = () => {
         if (!selection) continue;
 
         // 获取已分配的店铺ID列表
-        const distributedStoreIds = getDistributedStoreIds(selectionId);
+        const distributedStoreIds = getDistributedStoreIds(selectionId, products);
 
         // 找出被删除的店铺
         const removedStoreIds = distributedStoreIds.filter(storeId => !uniqueStores.includes(storeId));
@@ -223,7 +234,9 @@ const ProductAllocation: React.FC = () => {
         totalRemoved += removedStoreIds.length;
 
         // 只为未分配的店铺创建商品
-        const newStoreIds = uniqueStores.filter(storeId => !distributedStoreIds.includes(storeId));
+        const newStoreIds = uniqueStores.filter(storeId => 
+          !distributedStoreIds.includes(String(storeId))
+        );
         totalAdded += newStoreIds.length;
 
         // 为每个新店铺创建商品
@@ -235,13 +248,13 @@ const ProductAllocation: React.FC = () => {
             throw new Error(`店铺 ${storeAccount?.name} 未设置默认模板`);
           }
 
-          const newProduct = createProduct(selection, storeId, defaultTemplate);
+          const newProduct = createProduct(selection, String(storeId), defaultTemplate);
           newProducts.push(newProduct);
         }
 
         // 更新选品状态
         const now = new Date().toISOString();
-        updateSelectionStatus(selectionId, 'distributed', now);
+        updateSelectionStatus(String(selectionId), 'distributed');
       }
 
       // 保存商品数据
@@ -271,7 +284,7 @@ const ProductAllocation: React.FC = () => {
     setSelectedSelections([record]);
 
     // 获取已分配的店铺ID列表
-    const distributedStoreIds = getDistributedStoreIds(record.id);
+    const distributedStoreIds = getDistributedStoreIds(record.id, products);
     
     // 获取已分配的店铺组ID列表
     const distributedGroupIds = storeGroups
@@ -410,9 +423,13 @@ const ProductAllocation: React.FC = () => {
         <div style={{ padding: 8 }}>
           <DatePicker.RangePicker
             style={{ marginBottom: 8 }}
-            value={selectedKeys[0] as RangeValue<Dayjs>}
+            value={selectedKeys.length ? [dayjs(Number(selectedKeys[0])), dayjs(Number(selectedKeys[1]))] : null}
             onChange={(dates: RangeValue<Dayjs>) => {
-              setSelectedKeys(dates ? [dates] : []);
+              if (dates) {
+                setSelectedKeys([dates[0].valueOf(), dates[1].valueOf()]);
+              } else {
+                setSelectedKeys([]);
+              }
               confirm();
             }}
           />
@@ -439,14 +456,68 @@ const ProductAllocation: React.FC = () => {
     }
   ];
 
-  // 处理日期范围变化
+  // 修改日期选择器相关的代码
+  const filterDropdown = ({ setSelectedKeys, selectedKeys, confirm }: {
+    setSelectedKeys: (keys: React.Key[]) => void;
+    selectedKeys: React.Key[];
+    confirm: () => void;
+  }) => {
+    const [tempDateRange, setTempDateRange] = useState<RangeValue<Dayjs>>(null);
+
+    useEffect(() => {
+      if (selectedKeys.length === 2) {
+        const start = dayjs(Number(selectedKeys[0]));
+        const end = dayjs(Number(selectedKeys[1]));
+        setTempDateRange([start, end]);
+      } else {
+        setTempDateRange(null);
+      }
+    }, [selectedKeys]);
+
+    return (
+      <div style={{ padding: 8 }}>
+        <DatePicker.RangePicker
+          style={{ marginBottom: 8 }}
+          value={tempDateRange}
+          onChange={(dates: RangeValue<Dayjs>) => {
+            if (dates && dates[0] && dates[1]) {
+              setSelectedKeys([dates[0].valueOf(), dates[1].valueOf()]);
+            } else {
+              setSelectedKeys([]);
+            }
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Button
+            size="small"
+            style={{ width: 90 }}
+            onClick={() => {
+              setSelectedKeys([]);
+              setTempDateRange(null);
+              confirm();
+            }}
+          >
+            重置
+          </Button>
+          <Button
+            type="primary"
+            size="small"
+            style={{ width: 90 }}
+            onClick={() => confirm()}
+          >
+            确定
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // 修改日期范围变化处理函数
   const handleDateRangeChange = (dates: RangeValue<Dayjs>) => {
-    if (dates && dates[0] && dates[1]) {
-      setFilterValues(prev => ({
-        ...prev,
-        dateRange: [dates[0], dates[1]]
-      }));
-    }
+    setFilterValues(prev => ({
+      ...prev,
+      dateRange: dates ? [dates[0], dates[1]] : [dayjs().startOf('day'), dayjs().endOf('day')]
+    }));
   };
 
   // 批量操作菜单
@@ -487,24 +558,6 @@ const ProductAllocation: React.FC = () => {
     // ... existing code ...
   };
 
-  // 处理表格筛选下拉框
-  const filterDropdown = ({ setSelectedKeys, selectedKeys, confirm }: {
-    setSelectedKeys: (keys: React.Key[]) => void;
-    selectedKeys: React.Key[];
-    confirm: () => void;
-  }) => (
-    <div style={{ padding: 8 }}>
-      <DatePicker.RangePicker
-        style={{ marginBottom: 8 }}
-        value={selectedKeys[0] as RangeValue<Dayjs>}
-        onChange={(dates: RangeValue<Dayjs>) => {
-          setSelectedKeys(dates ? [dates] : []);
-          confirm();
-        }}
-      />
-    </div>
-  );
-
   return (
     <div className="p-6 space-y-4">
       <Card>
@@ -538,6 +591,7 @@ const ProductAllocation: React.FC = () => {
           </Space>
           <Space>
             <DatePicker.RangePicker
+              value={filterValues.dateRange}
               onChange={handleDateRangeChange}
               allowClear
               placeholder={['开始日期', '结束日期']}

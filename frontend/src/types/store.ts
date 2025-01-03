@@ -19,4 +19,11 @@ export interface StoreAccount {
   createdAt: string;
   lastUpdated?: string;
   status: 'active' | 'inactive';
+  features?: {
+    templates: Array<{
+      id: string;
+      name: string;
+      content: string;
+    }>;
+  };
 } 

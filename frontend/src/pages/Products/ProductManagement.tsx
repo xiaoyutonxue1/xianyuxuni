@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { Card, Table, Button, Input, Space, message, Select, Tag, Modal, Image, DatePicker, Popover, Dropdown, Progress, Checkbox } from 'antd';
 import { EditOutlined, StopOutlined, CalendarOutlined, ExportOutlined, DeleteOutlined, DownOutlined } from '@ant-design/icons';
 import EditProductForm from './EditProductForm';
-import type { Product, ProductSelection, ProductSourceStatus, ProductStatus, ProductCategory } from '../../types/product';
+import type { Product, ProductSelection, ProductSourceStatus, ProductStatus, ProductCategory, DeliveryMethod } from '../../types/product';
 import useProductStore from '../../store/productStore';
 import useSettingsStore from '../../store/settingsStore';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { deliveryMethods, deliveryMethodMap } from '../../constants';
+import type { StoreAccount } from '../../types/store';
 
 const { Search } = Input;
 const { RangePicker } = DatePicker;
@@ -18,23 +19,64 @@ declare global {
   interface Window {
     showDirectoryPicker(options?: { mode?: 'read' | 'readwrite' }): Promise<FileSystemDirectoryHandle>;
   }
+  
+  interface FileSystemWritableFileStream {
+    write(data: BufferSource | Blob | string): Promise<void>;
+    close(): Promise<void>;
+  }
+}
+
+// 修复watermarkSettings类型
+interface ProductManagementProps {
+  watermarkSettings?: StoreAccount['watermarkSettings'];
 }
 
 // 将Product类型转换为ProductSelection类型
 const convertProductToSelection = (product: Product): ProductSelection => {
-  console.log('Converting product to selection:', product);
   return {
-    ...product,
-    source_status: product.source === 'manual' ? 'manual' : 'crawler_success' as ProductSourceStatus,
+    id: product.id,
+    name: product.name,
+    category: product.category,
+    price: product.price,
+    stock: product.stock,
+    createdAt: product.createdAt,
+    description: product.description,
+    source: product.source,
+    hasSpecs: product.hasSpecs,
+    specs: product.specs,
+    deliveryMethod: product.deliveryMethod,
+    lastUpdated: product.lastUpdated
   };
 };
 
 // 将ProductSelection类型转换为Product类型
-const convertSelectionToProduct = (selection: any, originalProduct: Product): Product => {
+const convertSelectionToProduct = (
+  selection: Partial<ProductSelection>, 
+  originalProduct: Product
+): Product => {
+  const status = selection.status === 'inactive' ? 'offline' as const :
+                selection.status === 'distributed' ? 'published' as const :
+                'pending' as const;
+                
   return {
     ...originalProduct,
     ...selection,
+    status,
+    category: (selection.category || originalProduct.category) as ProductCategory,
+    deliveryMethod: (selection.deliveryMethod || originalProduct.deliveryMethod) as DeliveryMethod,
+    commonImages: selection.commonImages?.map(img => ({
+      id: img.id,
+      url: img.url,
+      thumbUrl: img.thumbUrl,
+      size: img.size,
+      type: 'common' as const,
+      sort: 0,
+      createdAt: new Date().toISOString()
+    })) || originalProduct.commonImages,
     lastUpdated: new Date().toISOString(),
+    selectionId: originalProduct.selectionId,
+    storeId: originalProduct.storeId,
+    templateId: originalProduct.templateId
   };
 };
 
@@ -66,6 +108,29 @@ const analyzeImageColor = async (img: HTMLImageElement): Promise<string> => {
 
   // 根据平均亮度选择水印颜色
   return averageBrightness > 128 ? '#000000' : '#ffffff';
+};
+
+// 修复createProduct函数的返回类型
+const createProduct = (selection: ProductSelection, storeId: string, template: any): Product => {
+  return {
+    id: `${selection.id}-${storeId}`,
+    selectionId: selection.id,
+    storeId: storeId,
+    templateId: template.id,
+    name: selection.name,
+    category: selection.category as ProductCategory,
+    description: selection.description || '',
+    price: selection.price || 0,
+    stock: selection.stock || 0,
+    status: 'draft' as const,
+    createdAt: new Date().toISOString(),
+    source: selection.source,
+    hasSpecs: selection.hasSpecs,
+    specs: selection.specs,
+    deliveryMethod: selection.deliveryMethod as DeliveryMethod,
+    distributedAt: new Date().toISOString(),
+    lastUpdated: new Date().toISOString()
+  };
 };
 
 const ProductManagement: React.FC = () => {
@@ -361,12 +426,12 @@ const ProductManagement: React.FC = () => {
     folderHandle: FileSystemDirectoryHandle,
     watermarkText?: string,
     watermarkSettings?: StoreAccount['watermarkSettings']
-  ) => {
+  ): Promise<Blob> => {
     try {
       const response = await fetch(imageUrl);
       const blob = await response.blob();
       
-      let finalBlob = blob;
+      let finalBlob: Blob = blob;
       if (watermarkText && addWatermark) {
         const img = new window.Image();
         img.src = URL.createObjectURL(blob);
@@ -467,9 +532,9 @@ const ProductManagement: React.FC = () => {
       await writable.write(finalBlob);
       await writable.close();
       
-      return true;
+      return finalBlob;
     } catch (error) {
-      console.error('保存图片失败:', error);
+      console.error('Error saving image:', error);
       throw error;
     }
   };
@@ -491,13 +556,12 @@ const ProductManagement: React.FC = () => {
           const watermarkText = addWatermark ? store?.watermarkText : undefined;
           const watermarkSettings = addWatermark ? store?.watermarkSettings : undefined;
           
-          // 直接使用原始名称，不进行编码
           const folderName = `${product.name}【${storeName}】`;
           const folderHandle = await dirHandle.getDirectoryHandle(folderName, { create: true });
 
           // 创建文本文件
           const files: Record<string, string> = {
-            '商品名��.txt': product.name || '',
+            '商品名.txt': product.name || '',
             '分类.txt': product.category || '',
             '价格.txt': product.price?.toString() || '0',
             '库存.txt': product.stock?.toString() || '0',
@@ -529,7 +593,7 @@ const ProductManagement: React.FC = () => {
 
           // 保存封面图片
           if (product.coverImage) {
-            await saveImage(
+            const coverImageBlob = await saveImage(
               product.coverImage,
               '封面图片.jpg',
               imagesFolderHandle,
@@ -543,7 +607,7 @@ const ProductManagement: React.FC = () => {
             for (let i = 0; i < product.commonImages.length; i++) {
               const image = product.commonImages[i];
               if (image.url) {
-                await saveImage(
+                const imageBlob = await saveImage(
                   image.url,
                   `公共图片_${i + 1}.jpg`,
                   imagesFolderHandle,
@@ -750,10 +814,6 @@ const ProductManagement: React.FC = () => {
           watermarkText,
           watermarkSettings
         );
-        const coverImageHandle = await imagesFolderHandle.getFileHandle('封面图片.jpg', { create: true });
-        const coverImageWritable = await coverImageHandle.createWritable();
-        await coverImageWritable.write(coverImageBlob);
-        await coverImageWritable.close();
       }
 
       // 保存公共图片
@@ -768,10 +828,6 @@ const ProductManagement: React.FC = () => {
               watermarkText,
               watermarkSettings
             );
-            const imageHandle = await imagesFolderHandle.getFileHandle(`公共图片_${i + 1}.jpg`, { create: true });
-            const imageWritable = await imageHandle.createWritable();
-            await imageWritable.write(imageBlob);
-            await imageWritable.close();
           }
         }
       }
@@ -1092,21 +1148,16 @@ const ProductManagement: React.FC = () => {
         centered
         destroyOnClose
       >
-        {selectedProduct ? (
-          <>
-            {console.log('Rendering EditProductForm with product:', selectedProduct)}
-            <EditProductForm
-              initialValues={convertProductToSelection(selectedProduct)}
-              onSubmit={handleEditSubmit}
-              onCancel={() => {
-                console.log('Canceling edit');
-                setIsEditModalVisible(false);
-                setSelectedProduct(null);
-              }}
-            />
-          </>
-        ) : (
-          <div>No product selected</div>
+        {selectedProduct && (
+          <EditProductForm
+            initialValues={selectedProduct}
+            onSubmit={handleEditSubmit}
+            onCancel={() => {
+              console.log('Canceling edit');
+              setIsEditModalVisible(false);
+              setSelectedProduct(null);
+            }}
+          />
         )}
       </Modal>
       

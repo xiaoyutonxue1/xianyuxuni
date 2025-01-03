@@ -62,6 +62,7 @@ const saveToLocalStorage = (key: string, value: any) => {
           }
           
           // 再次尝试保存
+          const serializedValue = JSON.stringify(value);
           localStorage.setItem(key, serializedValue);
         }
       } catch (e) {

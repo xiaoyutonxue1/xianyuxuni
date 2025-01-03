@@ -347,7 +347,7 @@ const StoreForm: React.FC<{
         }
       };
     } else {
-      // 绘制��景
+      // 绘制背景
       ctx.fillStyle = '#f8f8f8';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
@@ -382,31 +382,17 @@ const StoreForm: React.FC<{
   };
 
   // 添加保存设置的函数
-  const saveWatermarkSettings = async (settings: any) => {
-    if (!currentStore?.id) {
-      console.warn('No current store found');
-      return;
-    }
-
-    console.log('Saving watermark settings:', {
-      storeId: currentStore.id,
-      settings
-    });
-
-    const success = await updateStoreAccount(currentStore.id, {
-      watermarkSettings: {
-        ...settings,
-        lastUpdated: new Date().toISOString()
-      }
-    });
-
-    if (!success) {
-      message.error('保存水印设置失败');
+  const handleSaveWatermarkSettings = async (settings: any): Promise<boolean> => {
+    try {
+      await updateStoreAccount(currentStore.id, {
+        watermarkSettings: settings
+      });
+      message.success('保存成功');
+      return true;
+    } catch (error) {
+      message.error('保存失败');
       return false;
     }
-
-    message.success('保存水印设置成功');
-    return true;
   };
 
   // 修改表单项的onChange处理
@@ -417,7 +403,7 @@ const StoreForm: React.FC<{
     console.log('Watermark settings changed:', watermarkSettings);
     
     // 保存设置
-    const success = await saveWatermarkSettings(watermarkSettings);
+    const success = await handleSaveWatermarkSettings(watermarkSettings);
     
     if (success) {
       // 更新预览
@@ -454,7 +440,7 @@ const StoreForm: React.FC<{
       });
 
       // 单独保存水印设置以确保更新
-      const success = await saveWatermarkSettings(watermarkSettings);
+      const success = await handleSaveWatermarkSettings(watermarkSettings);
       
       if (success) {
         message.success('保存成功');
@@ -511,11 +497,11 @@ const StoreForm: React.FC<{
             watermarkSettings: smartSettings
           });
 
-          // 保存设置
-          await saveWatermarkSettings(smartSettings);
-
-          // 更新预览
-          updateWatermarkPreview();
+          // 保存设置并更新预览
+          const success = await handleSaveWatermarkSettings(smartSettings);
+          if (success) {
+            updateWatermarkPreview();
+          }
         };
       } else {
         // 即使没有预览图片也允许开启智能水印模式
@@ -532,8 +518,11 @@ const StoreForm: React.FC<{
           watermarkSettings: defaultSettings
         });
 
-        // 保存设置
-        await saveWatermarkSettings(defaultSettings);
+        // 保存设置并更新预览
+        const success = await handleSaveWatermarkSettings(defaultSettings);
+        if (success) {
+          updateWatermarkPreview();
+        }
       }
     } else {
       // 关闭智能水印时，重置为默认值
@@ -550,12 +539,12 @@ const StoreForm: React.FC<{
         watermarkSettings: defaultSettings
       });
 
-      // 保存设置
-      await saveWatermarkSettings(defaultSettings);
+      // 保存设置并更新预览
+      const success = await handleSaveWatermarkSettings(defaultSettings);
+      if (success) {
+        updateWatermarkPreview();
+      }
     }
-
-    // 更新预览
-    updateWatermarkPreview();
   };
 
   // 添加绘制水印的函数
@@ -698,7 +687,7 @@ const StoreForm: React.FC<{
           });
 
           // 保存设置
-          saveWatermarkSettings(smartSettings);
+          handleSaveWatermarkSettings(smartSettings);
 
           // 更新预览
           updateWatermarkPreview();
@@ -722,7 +711,7 @@ const StoreForm: React.FC<{
       const newImages = [...prev];
       newImages.splice(index, 1);
       
-      // 如果删除的是当前预览的��片，调整预览索引
+      // 如果删除的是当前预览的图片，调整预览索引
       if (currentPreviewIndex >= newImages.length) {
         setCurrentPreviewIndex(Math.max(0, newImages.length - 1));
       } else if (index < currentPreviewIndex) {
@@ -1091,7 +1080,7 @@ const StoreForm: React.FC<{
 
         {/* 商品模板 */}
         <Card 
-          title="商品模��" 
+          title="商品模板" 
           className="shadow-sm"
           extra={
             <Button
@@ -1166,7 +1155,7 @@ const StoreForm: React.FC<{
 
       {/* 模板编辑弹窗 */}
       <Modal
-        title={currentTemplate ? '��辑模板' : '添加模板'}
+        title={currentTemplate ? '编辑模板' : '添加模板'}
         open={isTemplateModalVisible}
         onCancel={() => {
           setIsTemplateModalVisible(false);
@@ -1245,29 +1234,17 @@ const Settings: React.FC = () => {
   // 保存店铺
   const handleSaveStore = async (values: StoreAccount) => {
     try {
-      const storeInfo = {
-        id: currentStore?.id || uuidv4(),
-        name: values.name,
-        platform: values.platform,
-        watermarkText: values.watermarkText,
-        features: {
-          templates: values.features?.templates || []
-        }
-      };
-
       if (currentStore) {
-        updateStoreAccount(currentStore.id, storeInfo);
-        message.success('编辑成功');
+        await updateStoreAccount(currentStore.id, values);
+        message.success('更新成功');
       } else {
-        addStoreAccount(storeInfo);
+        addStoreAccount(values);
         message.success('添加成功');
       }
       setIsStoreModalVisible(false);
-      storeForm.resetFields();
-      setCurrentStore(undefined);
+      setCurrentStore(null);
     } catch (error) {
-      console.error('保存店铺失败:', error);
-      message.error('保存失败，请重试');
+      message.error('操作失败');
     }
   };
 
@@ -1365,20 +1342,20 @@ const Settings: React.FC = () => {
     try {
       const values = await groupForm.validateFields();
       if (currentGroup) {
-        updateStoreGroup(currentGroup.id, values);
-        message.success('编辑成功');
+        await updateStoreGroup(currentGroup.id, values);
+        message.success('更新成功');
       } else {
         addStoreGroup({
           id: uuidv4(),
-          ...values,
+          ...values
         });
         message.success('添加成功');
       }
       setIsGroupModalVisible(false);
+      setCurrentGroup(null);
       groupForm.resetFields();
-      setCurrentGroup(undefined);
     } catch (error) {
-      // 表单验证错误
+      message.error('操作失败');
     }
   };
 
@@ -1457,7 +1434,7 @@ const Settings: React.FC = () => {
           ))}
         </div>
         <div className="text-gray-500 text-sm">
-          点击标签可以��用/禁用对应的发货方式，至少需要保留一种发货方式
+          点击标签可以启用/禁用对应的发货方式，至少需要保留一种发货方式
         </div>
       </div>
     );
