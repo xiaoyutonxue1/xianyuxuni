@@ -1,12 +1,4 @@
--- 数据库创建
-CREATE DATABASE virtual_goods
-    WITH 
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.utf8'
-    LC_CTYPE = 'en_US.utf8';
-
--- 连接到新创建的数据库
-\c virtual_goods
+-- 数据库初始化脚本
 
 -- 用户表
 CREATE TABLE users (
@@ -34,6 +26,15 @@ CREATE TABLE user_roles (
     user_id INTEGER REFERENCES users(id),
     role_id INTEGER REFERENCES roles(id),
     PRIMARY KEY (user_id, role_id)
+);
+
+-- 店铺表
+CREATE TABLE stores (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    platform VARCHAR(50),
+    status VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 选品表
@@ -105,15 +106,6 @@ CREATE TABLE product_images (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 店铺表
-CREATE TABLE stores (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    platform VARCHAR(50),
-    status VARCHAR(50),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- 店铺分组表
 CREATE TABLE store_groups (
     id SERIAL PRIMARY KEY,
@@ -178,10 +170,3 @@ CREATE INDEX idx_stores_status ON stores(status);
 CREATE INDEX idx_operation_logs_user_id ON operation_logs(user_id);
 CREATE INDEX idx_operation_logs_created_at ON operation_logs(created_at);
 CREATE INDEX idx_operation_logs_target ON operation_logs(target_type, target_id);
-
--- 设置数据库参数
-ALTER SYSTEM SET shared_buffers = '1GB';
-ALTER SYSTEM SET work_mem = '16MB';
-ALTER SYSTEM SET maintenance_work_mem = '256MB';
-ALTER SYSTEM SET random_page_cost = 1.1;
-ALTER SYSTEM SET effective_cache_size = '3GB'; 

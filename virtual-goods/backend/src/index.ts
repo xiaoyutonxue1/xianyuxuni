@@ -13,7 +13,7 @@ import templatesRoutes from './routes/templates.routes';
 import uploadRoutes from './routes/upload.routes';
 
 const app = express();
-const port = process.env.PORT || 8080;
+const port = parseInt(process.env.PORT || '8080', 10);
 
 // 中间件
 app.use(cors());
@@ -42,7 +42,7 @@ app.use(errorHandler);
 
 // 启动服务器
 connectDB().then(() => {
-  app.listen(port, () => {
+  app.listen(port, '0.0.0.0', () => {
     logger.info(`Server is running on port ${port}`);
   });
 }).catch(error => {

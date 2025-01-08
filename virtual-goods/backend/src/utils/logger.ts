@@ -16,9 +16,23 @@ const logFormat = winston.format.combine(
   winston.format.json()
 );
 
+// 控制台输出格式
+const consoleFormat = winston.format.combine(
+  winston.format.colorize(),
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+  winston.format.printf(
+    ({ level, message, timestamp, stack }) => {
+      if (stack) {
+        return `${timestamp} ${level}: ${message}\n${stack}`;
+      }
+      return `${timestamp} ${level}: ${message}`;
+    }
+  )
+);
+
 // 创建日志记录器
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env.LOG_LEVEL || 'debug',
   format: logFormat,
   defaultMeta: { service: 'virtual-goods-api' },
   transports: [
@@ -34,20 +48,12 @@ const logger = winston.createLogger({
       level: 'error',
       maxsize: 5242880, // 5MB
       maxFiles: 5
+    }),
+    // 始终输出到控制台
+    new winston.transports.Console({
+      format: consoleFormat
     })
   ]
 });
-
-// 非生产环境下，同时输出到控制台
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(
-    new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      )
-    })
-  );
-}
 
 export default logger; 

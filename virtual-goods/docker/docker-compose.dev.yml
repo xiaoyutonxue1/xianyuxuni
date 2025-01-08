@@ -1,13 +1,11 @@
-version: '3.8'
-
 services:
   frontend:
     build: 
-      context: ./frontend
+      context: ../frontend
       dockerfile: Dockerfile.dev
     container_name: vg-frontend-dev
     volumes:
-      - ./frontend:/app
+      - ../frontend:/app
       - /app/node_modules
     ports:
       - "5173:5173"
@@ -18,17 +16,24 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ../backend
       dockerfile: Dockerfile.dev
     container_name: vg-backend-dev
     volumes:
-      - ./backend:/app
+      - ../backend:/app
       - /app/node_modules
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
+      - PORT=3000
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/virtual_goods
+      - JWT_SECRET=virtual-goods-api-secret-2024
+      - JWT_REFRESH_SECRET=virtual-goods-api-refresh-secret-2024
+      - JWT_EXPIRES_IN=7d
+      - API_VERSION=v1
+      - API_PREFIX=/api/v1
+      - LOG_LEVEL=debug
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,14 +42,14 @@ services:
     image: postgres:14-alpine
     container_name: vg-postgres-dev
     environment:
-      POSTGRES_DB: virtual_goods
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=virtual_goods
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

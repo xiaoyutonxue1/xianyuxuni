@@ -2,20 +2,29 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# 安装开发依赖
-RUN apk add --no-cache python3 make g++ postgresql-client
+# 安装必要的系统依赖
+RUN apk add --no-cache python3 make g++ postgresql-client openssl
 
-# 设置npm镜像
+# 设置 npm 镜像
 RUN npm config set registry https://registry.npmmirror.com
 
+# 复制 package.json 和 package-lock.json
 COPY package*.json ./
+
+# 安装依赖
 RUN npm install
 
+# 复制源代码
 COPY . .
 
-# 生成Prisma客户端
+# 设置 Prisma 引擎二进制目标
+ENV PRISMA_QUERY_ENGINE_BINARY=/app/node_modules/.prisma/client/libquery_engine-linux-musl-openssl-3.0.x.so.node
+
+# 生成 Prisma 客户端
 RUN npx prisma generate
 
+# 暴露端口
 EXPOSE 3000
 
+# 启动命令
 CMD ["npm", "run", "dev"] 
