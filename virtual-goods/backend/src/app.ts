@@ -5,6 +5,10 @@ import { errorHandler } from './middlewares/errorHandler';
 import { UPLOAD_DIR } from './config/upload';
 import logger from './utils/logger';
 
+// 导入路由
+import authRoutes from './routes/auth.routes';
+import selectionRoutes from './routes/selection.routes';
+
 const app = express();
 
 // Middleware
@@ -25,6 +29,11 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// API路由
+const API_PREFIX = process.env.API_PREFIX || '/api/v1';
+app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/selections`, selectionRoutes);
 
 // Error Handler
 app.use(errorHandler);

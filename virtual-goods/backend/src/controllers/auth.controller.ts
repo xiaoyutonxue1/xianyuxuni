@@ -5,6 +5,7 @@ import { AuthRequest } from '../types';
 import { AppError } from '../middlewares/errorHandler';
 import prisma from '../config/database';
 import logger from '../utils/logger';
+import { Prisma } from '@prisma/client';
 
 // 生成Token
 const generateTokens = (user: { id: number; username: string; role: string }) => {
@@ -32,13 +33,28 @@ export const register = async (
   try {
     const { username, password, email } = req.body;
 
+    logger.info('Attempting to register new user:', { username, email });
+
     // 检查用户名是否已存在
     const existingUser = await prisma.user.findUnique({
       where: { username }
     });
 
     if (existingUser) {
+      logger.warn('Registration failed: Username already exists', { username });
       throw new AppError('用户名已存在', 400);
+    }
+
+    // 检查邮箱是否已存在
+    if (email) {
+      const existingEmail = await prisma.user.findFirst({
+        where: { email }
+      });
+
+      if (existingEmail) {
+        logger.warn('Registration failed: Email already exists', { email });
+        throw new AppError('邮箱已被使用', 400);
+      }
     }
 
     // 加密密码
@@ -59,6 +75,12 @@ export const register = async (
         username: true,
         role: true
       }
+    }).catch((error) => {
+      logger.error('Failed to create user:', error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        throw error;
+      }
+      throw new AppError('注册失败，请稍后重试', 500);
     });
 
     // 生成Token
@@ -71,9 +93,12 @@ export const register = async (
         userId: user.id,
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30天
       }
+    }).catch((error) => {
+      logger.error('Failed to create refresh token:', error);
+      throw new AppError('注册失败，请稍后重试', 500);
     });
 
-    logger.info(`User registered: ${username}`);
+    logger.info('User registered successfully:', { userId: user.id, username });
 
     res.status(201).json({
       message: '注册成功',
@@ -87,6 +112,7 @@ export const register = async (
       }
     });
   } catch (error) {
+    logger.error('Registration error:', error);
     next(error);
   }
 };

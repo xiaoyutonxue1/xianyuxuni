@@ -1,151 +1,86 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../types';
 import { AppError } from '../middlewares/errorHandler';
 import prisma from '../config/database';
 import { handlePagination, handleSort, formatResponse } from '../utils/helpers';
+import { handleError } from '../utils/errorHandler';
 import logger from '../utils/logger';
+import { Prisma } from '@prisma/client';
 
 // 获取选品列表
-export const getSelections = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const getSelections = async (req: AuthRequest, res: Response) => {
   try {
-    const { status, category, keyword } = req.query;
-    const { skip, take, page, pageSize } = handlePagination(req.query);
-    const sort = handleSort(req.query.sortBy as string, req.query.sortOrder as 'asc' | 'desc');
-
-    // 构建查询条件
-    const where: any = {};
-    if (status) where.status = status;
-    if (category) where.category = category;
-    if (keyword) {
-      where.OR = [
-        { title: { contains: keyword as string, mode: 'insensitive' } },
-        { description: { contains: keyword as string, mode: 'insensitive' } }
-      ];
-    }
-
-    // 查询数据
-    const [selections, total] = await Promise.all([
-      prisma.selection.findMany({
-        where,
-        skip,
-        take,
-        orderBy: sort || { createdAt: 'desc' },
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          status: true,
-          type: true,
-          source: true,
-          data: true,
-          createdAt: true,
-          updatedAt: true,
-          user: {
-            select: {
-              id: true,
-              username: true
-            }
-          }
-        }
-      }),
-      prisma.selection.count({ where })
-    ]);
-
-    res.json(formatResponse(
-      { items: selections, total, page, pageSize },
-      '获取选品列表成功'
-    ));
+    const selections = await prisma.selection.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        category: true,
+        price: true,
+        stock: true,
+        source: true,
+        sourceUrl: true,
+        coverImage: true,
+        hasSpecs: true,
+        createdBy: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    res.json(selections);
   } catch (error) {
-    next(error);
+    handleError(error, res);
   }
 };
 
 // 创建选品
-export const createSelection = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) => {
+export const createSelection = async (req: AuthRequest, res: Response) => {
   try {
-    const { title, description, type, source, data } = req.body;
-    const userId = req.user?.id;
-
-    if (!userId) {
+    if (!req.user?.id) {
       throw new AppError('未认证', 401);
     }
 
-    // 确保data是JSON对象
-    let jsonData;
-    try {
-      jsonData = typeof data === 'string' ? JSON.parse(data) : data;
-    } catch (error) {
-      logger.error('Invalid data format:', error);
-      throw new AppError('数据格式无效', 400);
-    }
-
-    logger.info('Creating selection with data:', {
-      title,
-      description,
-      type,
-      source,
-      data: jsonData,
-      userId
-    });
-
-    const selection = await prisma.selection.create({
-      data: {
-        title,
-        description,
-        type,
-        source,
-        data: jsonData,
-        status: 'draft',
-        createdBy: userId
-      },
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        status: true,
-        type: true,
-        source: true,
-        data: true,
-        createdAt: true,
-        updatedAt: true,
-        user: {
-          select: {
-            id: true,
-            username: true
-          }
+    const data: Prisma.SelectionCreateInput = {
+      name: req.body.name,
+      description: req.body.description || null,
+      status: req.body.status || 'draft',
+      category: req.body.category || null,
+      price: req.body.price ? parseFloat(req.body.price) : 0,
+      stock: req.body.stock ? parseInt(req.body.stock) : 0,
+      source: req.body.source || 'manual',
+      sourceUrl: req.body.sourceUrl || null,
+      coverImage: req.body.coverImage || null,
+      hasSpecs: req.body.hasSpecs || false,
+      user: {
+        connect: {
+          id: req.user.id
         }
       }
-    }).catch((error: unknown) => {
-      logger.error('Database error:', error);
-      if (error instanceof Error) {
-        throw new AppError('数据库操作失败: ' + error.message, 500);
-      }
-      throw new AppError('数据库操作失败', 500);
+    };
+
+    const selection = await prisma.selection.create({
+      data,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        category: true,
+        price: true,
+        stock: true,
+        source: true,
+        sourceUrl: true,
+        coverImage: true,
+        hasSpecs: true,
+        createdBy: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
-
-    logger.info(`Selection created: ${selection.id} by user ${userId}`);
-
-    res.status(201).json(formatResponse(
-      selection,
-      '创建选品成功'
-    ));
-  } catch (error: unknown) {
-    logger.error('Error in createSelection:', error);
-    if (error instanceof AppError) {
-      next(error);
-    } else if (error instanceof Error) {
-      next(new AppError('服务器内部错误: ' + error.message, 500));
-    } else {
-      next(new AppError('服务器内部错误', 500));
-    }
+    res.json(selection);
+  } catch (error) {
+    handleError(error, res);
   }
 };
 
@@ -157,7 +92,18 @@ export const updateSelection = async (
 ) => {
   try {
     const { id } = req.params;
-    const { title, description, status, data } = req.body;
+    const { 
+      name, 
+      description, 
+      status, 
+      category,
+      price,
+      stock,
+      source,
+      sourceUrl,
+      coverImage,
+      hasSpecs
+    } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -182,20 +128,30 @@ export const updateSelection = async (
     const selection = await prisma.selection.update({
       where: { id: Number(id) },
       data: {
-        ...(title && { title }),
+        ...(name && { name }),
         ...(description && { description }),
         ...(status && { status }),
-        ...(data && { data }),
+        ...(category && { category }),
+        ...(price && { price: parseFloat(price) }),
+        ...(stock && { stock: parseInt(stock) }),
+        ...(source && { source }),
+        ...(sourceUrl && { sourceUrl }),
+        ...(coverImage && { coverImage }),
+        ...(hasSpecs !== undefined && { hasSpecs }),
         updatedAt: new Date()
       },
       select: {
         id: true,
-        title: true,
+        name: true,
         description: true,
         status: true,
-        type: true,
+        category: true,
+        price: true,
+        stock: true,
         source: true,
-        data: true,
+        sourceUrl: true,
+        coverImage: true,
+        hasSpecs: true,
         createdAt: true,
         updatedAt: true,
         user: {

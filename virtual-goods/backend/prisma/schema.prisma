@@ -27,6 +27,8 @@ model User {
   templates     Template[]
   operationLogs OperationLog[]
   files         File[]
+
+  @@map("User")
 }
 
 // 刷新Token模型
@@ -39,17 +41,23 @@ model RefreshToken {
 
   // 关联
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("RefreshToken")
 }
 
 // 选品模型
 model Selection {
   id          Int      @id @default(autoincrement())
-  title       String
+  name        String
   description String?
   status      String   @default("draft")
-  type        String
-  source      String
-  data        Json
+  category    String?
+  price       Float?
+  stock       Int?
+  source      String   @default("manual")
+  sourceUrl   String?  @map("source_url")
+  coverImage  String?  @map("cover_image")
+  hasSpecs    Boolean  @default(false) @map("has_specs")
   createdBy   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -57,6 +65,8 @@ model Selection {
   // 关联
   user     User      @relation(fields: [createdBy], references: [id])
   products Product[]
+
+  @@map("Selection")
 }
 
 // 商品模型
@@ -79,6 +89,8 @@ model Product {
   selection Selection @relation(fields: [selectionId], references: [id])
   user      User      @relation(fields: [createdBy], references: [id])
   stores    Store[]
+
+  @@map("Product")
 }
 
 // 店铺模型
@@ -95,6 +107,8 @@ model Store {
   // 关联
   user     User      @relation(fields: [createdBy], references: [id])
   products Product[]
+
+  @@map("Store")
 }
 
 // 模板模型
@@ -109,6 +123,8 @@ model Template {
 
   // 关联
   user User @relation(fields: [createdBy], references: [id])
+
+  @@map("Template")
 }
 
 // 操作日志模型
@@ -122,6 +138,8 @@ model OperationLog {
 
   // 关联
   user User @relation(fields: [userId], references: [id])
+
+  @@map("OperationLog")
 }
 
 // 文件模型
@@ -143,4 +161,5 @@ model File {
 
   @@index([userId])
   @@index([type])
+  @@map("File")
 } 

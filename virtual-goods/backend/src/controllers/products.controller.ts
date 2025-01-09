@@ -46,8 +46,19 @@ export const getProducts = async (
           selection: {
             select: {
               id: true,
-              title: true,
-              type: true
+              name: true,
+              description: true,
+              status: true,
+              category: true,
+              price: true,
+              stock: true,
+              source: true,
+              sourceUrl: true,
+              coverImage: true,
+              hasSpecs: true,
+              createdBy: true,
+              createdAt: true,
+              updatedAt: true,
             }
           },
           stores: {
@@ -92,8 +103,19 @@ export const getProductById = async (
         selection: {
           select: {
             id: true,
-            title: true,
-            type: true
+            name: true,
+            description: true,
+            status: true,
+            category: true,
+            price: true,
+            stock: true,
+            source: true,
+            sourceUrl: true,
+            coverImage: true,
+            hasSpecs: true,
+            createdBy: true,
+            createdAt: true,
+            updatedAt: true,
           }
         },
         stores: {
@@ -132,7 +154,7 @@ export const createProduct = async (
   next: NextFunction
 ) => {
   try {
-    const { title, description, price, selectionId, specs } = req.body;
+    const { name, description, price, selectionId, specs } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -140,7 +162,7 @@ export const createProduct = async (
     }
 
     logger.info('Creating product with data:', {
-      title,
+      name,
       description,
       price,
       selectionId,
@@ -164,7 +186,7 @@ export const createProduct = async (
     // 创建商品
     const product = await prisma.product.create({
       data: {
-        title,
+        name,
         description,
         price: Number(price),
         selectionId: Number(selectionId),
@@ -176,8 +198,19 @@ export const createProduct = async (
         selection: {
           select: {
             id: true,
-            title: true,
-            type: true
+            name: true,
+            description: true,
+            status: true,
+            category: true,
+            price: true,
+            stock: true,
+            source: true,
+            sourceUrl: true,
+            coverImage: true,
+            hasSpecs: true,
+            createdBy: true,
+            createdAt: true,
+            updatedAt: true,
           }
         },
         user: {
@@ -221,7 +254,7 @@ export const updateProduct = async (
 ) => {
   try {
     const { id } = req.params;
-    const { title, description, price, status, specs } = req.body;
+    const { name, description, price, status, specs } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
@@ -246,7 +279,7 @@ export const updateProduct = async (
     const product = await prisma.product.update({
       where: { id: Number(id) },
       data: {
-        ...(title && { title }),
+        ...(name && { name }),
         ...(description && { description }),
         ...(price && { price }),
         ...(status && { status }),
@@ -257,8 +290,19 @@ export const updateProduct = async (
         selection: {
           select: {
             id: true,
-            title: true,
-            type: true
+            name: true,
+            description: true,
+            status: true,
+            category: true,
+            price: true,
+            stock: true,
+            source: true,
+            sourceUrl: true,
+            coverImage: true,
+            hasSpecs: true,
+            createdBy: true,
+            createdAt: true,
+            updatedAt: true,
           }
         },
         stores: {
