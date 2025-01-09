@@ -1,35 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { Form, Input, Button, Card, message, Modal } from 'antd';
+import { Form, Input, Button, Card, message, Modal, Checkbox } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/store/auth';
 import Confetti from 'react-confetti';
 import styles from './index.module.css';
+import { login } from '@/services/auth';
+import { Link } from 'react-router-dom';
 
 interface LoginForm {
   username: string;
   password: string;
+  rememberMe?: boolean;
 }
 
-// 模拟用户数据
-const MOCK_USER = {
-  id: 1,
-  username: 'admin',
-  password: 'admin123', // 实际项目中密码应该加密存储
-  email: 'admin@example.com',
-  role: 'admin'
-};
-
-// 模拟token生成
-const generateToken = (username: string) => {
-  return `mock_token_${username}_${Date.now()}`;
-};
+const STORAGE_KEY = 'remembered_account';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuthStore();
+  const { login: loginStore } = useAuthStore();
   const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showUsername, setShowUsername] = useState(false);
   const [showWelcomeText, setShowWelcomeText] = useState(false);
@@ -38,6 +30,19 @@ const Login: React.FC = () => {
     width: window.innerWidth,
     height: window.innerHeight,
   });
+
+  // 组件加载时读取保存的账号密码
+  useEffect(() => {
+    const remembered = localStorage.getItem(STORAGE_KEY);
+    if (remembered) {
+      const { username, password } = JSON.parse(remembered);
+      form.setFieldsValue({
+        username,
+        password,
+        rememberMe: true,
+      });
+    }
+  }, [form]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -83,7 +88,7 @@ const Login: React.FC = () => {
                 navigate(from, { replace: true });
               }, 500);
             }, 3500);
-          }, 1500); // 增加延迟，等待第二句话动画完成
+          }, 1500);
         }, 1200);
       }, 300);
     }
@@ -97,25 +102,27 @@ const Login: React.FC = () => {
 
   const onFinish = async (values: LoginForm) => {
     try {
-      // 模拟登录验证
-      if (values.username === MOCK_USER.username && values.password === MOCK_USER.password) {
-        // 生成模拟token
-        const token = generateToken(values.username);
-        
-        // 构造用户数据（排除密码）
-        const { password, ...userData } = MOCK_USER;
-        
-        // 调用登录方法
-        login(token, userData);
-        message.success('登录成功');
-
-        // 显示欢迎动画
-        setShowWelcome(true);
+      setLoading(true);
+      const { rememberMe, ...loginParams } = values;
+      const result = await login(loginParams);
+      loginStore(result.data.accessToken, result.data.user);
+      
+      // 根据记住密码选项保存或清除账号密码
+      if (rememberMe) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          username: values.username,
+          password: values.password,
+        }));
       } else {
-        throw new Error('用户名或密码错误');
+        localStorage.removeItem(STORAGE_KEY);
       }
+      
+      message.success('登录成功');
+      setShowWelcome(true);
     } catch (error) {
       message.error('用户名或密码错误');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -128,7 +135,7 @@ const Login: React.FC = () => {
           onFinish={onFinish}
           autoComplete="off"
           size="large"
-          initialValues={{ username: 'admin', password: 'admin123' }}
+          initialValues={{ rememberMe: false }}
         >
           <Form.Item
             name="username"
@@ -150,14 +157,18 @@ const Login: React.FC = () => {
             />
           </Form.Item>
 
+          <Form.Item name="rememberMe" valuePropName="checked">
+            <Checkbox>记住密码</Checkbox>
+          </Form.Item>
+
           <Form.Item>
-            <Button type="primary" htmlType="submit" block>
+            <Button type="primary" htmlType="submit" block loading={loading}>
               登录
             </Button>
           </Form.Item>
 
-          <div style={{ textAlign: 'center', color: '#666' }}>
-            默认账号：admin / admin123
+          <div className={styles.registerLink}>
+            还没有账号？<Link to="/register">立即注册</Link>
           </div>
         </Form>
       </Card>
@@ -174,7 +185,7 @@ const Login: React.FC = () => {
         <div className={styles.welcomeContent}>
           <div className={styles.welcomeText}>
             <div className={`${styles.username} ${showUsername ? styles.show : ''}`}>
-              {MOCK_USER.username}
+              {form.getFieldValue('username')}
             </div>
             <div className={`${styles.welcome} ${showWelcomeText ? styles.show : ''}`}>
               欢迎回来

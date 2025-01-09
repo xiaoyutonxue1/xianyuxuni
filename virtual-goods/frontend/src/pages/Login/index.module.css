@@ -168,4 +168,19 @@
   50% {
     transform: translateY(-15px) scale(1.1);
   }
+}
+
+.registerLink {
+  text-align: center;
+  margin-top: -10px;
+  color: #666;
+}
+
+.registerLink a {
+  color: #1677ff;
+  margin-left: 4px;
+}
+
+.registerLink a:hover {
+  color: #4096ff;
 } 

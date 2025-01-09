@@ -1,0 +1,43 @@
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.card {
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.card :global(.ant-card-head-title) {
+  text-align: center;
+  font-size: 24px;
+  color: #1677ff;
+}
+
+.loginLink {
+  text-align: center;
+  margin-top: -10px;
+  color: #666;
+}
+
+.loginLink a {
+  color: #1677ff;
+  margin-left: 4px;
+}
+
+.loginLink a:hover {
+  color: #4096ff;
+} 

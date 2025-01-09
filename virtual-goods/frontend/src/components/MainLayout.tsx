@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Button, Avatar, Dropdown } from 'antd';
+import { Layout, Menu, Button, Avatar, Dropdown, Modal } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import type { MenuProps } from 'antd';
 import {
@@ -22,6 +22,19 @@ const MainLayout: React.FC = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    Modal.confirm({
+      title: '确认退出',
+      content: '您确定要退出登录吗？',
+      okText: '确认',
+      cancelText: '取消',
+      onOk: async () => {
+        await logout();
+        navigate('/login');
+      },
+    });
+  };
 
   const menuItems = [
     {
@@ -80,10 +93,7 @@ const MainLayout: React.FC = () => {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: '退出登录',
-      onClick: () => {
-        logout();
-        navigate('/login');
-      },
+      onClick: handleLogout,
     },
   ];
 
